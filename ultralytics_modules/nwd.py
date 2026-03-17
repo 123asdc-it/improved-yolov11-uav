@@ -188,22 +188,42 @@ def nwd_nms(boxes, scores, iou_threshold=0.7, nwd_threshold=0.8,
 # Monkey patches for ultralytics integration
 # ============================================================
 
-def patch_sa_nwd_loss(c_base=12.0, k=2.0):
-    """Monkey-patch ultralytics BboxLoss to use SA-NWD."""
+def patch_sa_nwd_loss(c_base=12.0, k=2.0, alpha=0.5):
+    """Monkey-patch ultralytics BboxLoss to use hybrid SA-NWD + CIoU loss.
+
+    Hybrid loss = alpha * SA-NWD + (1-alpha) * CIoU
+    - SA-NWD provides scale-adaptive, smooth gradients for small objects
+    - CIoU preserves explicit center distance + aspect ratio constraints
+    - Together they are more robust than either alone
+
+    Args:
+        c_base: SA-NWD base constant
+        k: SA-NWD scale adaptation factor (0 = standard NWD)
+        alpha: Blending weight. 0.5 = equal blend. 1.0 = pure SA-NWD.
+    """
     try:
         from ultralytics.utils.loss import BboxLoss
         from ultralytics.utils.tal import bbox2dist
+        from ultralytics.utils.metrics import bbox_iou
 
         def _patched_forward(self, pred_dist, pred_bboxes, anchor_points,
                              target_bboxes, target_scores, target_scores_sum,
                              fg_mask, imgsz, stride):
-            """SA-NWD bbox loss (replaces CIoU)."""
+            """Hybrid SA-NWD + CIoU bbox loss."""
             weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
+            pred_fg = pred_bboxes[fg_mask]
+            target_fg = target_bboxes[fg_mask]
 
-            # SA-NWD loss
-            loss_iou = sa_nwd_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask],
-                                   weight, target_scores_sum,
-                                   c_base=c_base, k=k)
+            # Component 1: SA-NWD loss (scale-adaptive, smooth for small objects)
+            sa_score = sa_nwd(pred_fg, target_fg, c_base=c_base, k=k)
+            loss_sa = ((1.0 - sa_score).unsqueeze(-1) * weight).sum() / target_scores_sum
+
+            # Component 2: CIoU loss (precise geometric constraints)
+            ciou = bbox_iou(pred_fg, target_fg, xywh=False, CIoU=True)
+            loss_ciou = ((1.0 - ciou).unsqueeze(-1) * weight).sum() / target_scores_sum
+
+            # Hybrid: alpha * SA-NWD + (1-alpha) * CIoU
+            loss_iou = alpha * loss_sa + (1.0 - alpha) * loss_ciou
 
             # DFL loss (unchanged from ultralytics)
             if self.dfl_loss:
@@ -232,7 +252,7 @@ def patch_sa_nwd_loss(c_base=12.0, k=2.0):
             return loss_iou, loss_dfl
 
         BboxLoss.forward = _patched_forward
-        print(f"\u2713 SA-NWD loss patch applied (c_base={c_base}, k={k})")
+        print(f"\u2713 Hybrid SA-NWD+CIoU loss patch applied (c_base={c_base}, k={k}, alpha={alpha})")
     except Exception as e:
         print(f"\u26a0 SA-NWD loss patch failed: {e}")
 
@@ -307,25 +327,27 @@ def patch_nwd_nms(iou_threshold=0.7, nwd_threshold=0.8, c_base=12.0, k=2.0):
 # Convenience: apply all patches at once
 # ============================================================
 
-def patch_all_nwd(c_base=12.0, k=2.0, use_sa=True, use_nwd_nms=False,
+def patch_all_nwd(c_base=12.0, k=2.0, alpha=0.5, use_sa=True, use_nwd_nms=False,
                   nms_iou_threshold=0.7, nms_nwd_threshold=0.8):
     """Apply SA-NWD patches to ultralytics.
 
     Args:
         c_base: Base normalization constant for NWD
         k: Scale adaptation factor (0 = standard NWD, >0 = scale-adaptive)
+        alpha: Loss blending weight. 0.5 = hybrid SA-NWD+CIoU (recommended).
+               1.0 = pure SA-NWD. 0.0 = pure CIoU (no NWD in loss).
         use_sa: If True, use SA-NWD; if False, use standard NWD (k is ignored)
         use_nwd_nms: If True, also patch NMS with hybrid IoU+NWD
         nms_iou_threshold: IoU threshold for NMS
         nms_nwd_threshold: NWD threshold for additional NMS suppression
     """
     if use_sa:
-        patch_sa_nwd_loss(c_base=c_base, k=k)
+        patch_sa_nwd_loss(c_base=c_base, k=k, alpha=alpha)
         patch_sa_nwd_tal(c_base=c_base, k=k)
     else:
         # Fall back to standard NWD (fixed constant)
-        patch_nwd_loss(constant=c_base)
-        patch_nwd_tal(constant=c_base)
+        patch_sa_nwd_loss(c_base=c_base, k=0.0, alpha=alpha)
+        patch_sa_nwd_tal(c_base=c_base, k=0.0)
 
     if use_nwd_nms:
         patch_nwd_nms(iou_threshold=nms_iou_threshold,
@@ -345,9 +367,9 @@ def nwd_loss(pred_bboxes, target_bboxes, weight, target_scores_sum,
     return loss
 
 
-def patch_nwd_loss(constant=12.0):
-    """Patch BboxLoss with standard NWD (fixed constant)."""
-    patch_sa_nwd_loss(c_base=constant, k=0.0)  # k=0 → C_adapt = C_base
+def patch_nwd_loss(constant=12.0, alpha=1.0):
+    """Patch BboxLoss with standard NWD (fixed constant, pure NWD loss)."""
+    patch_sa_nwd_loss(c_base=constant, k=0.0, alpha=alpha)
 
 
 def patch_nwd_tal(constant=12.0):
