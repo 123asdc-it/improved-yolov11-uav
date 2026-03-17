@@ -1,6 +1,6 @@
 """
 SOTA 模型训练：YOLOv11n-SOTA
-改进：RepVGG backbone + CA attention + CARAFE P2 + PConv + BiFPN + Inner-IoU
+改进：RepVGG backbone + SimAM attention + CARAFE P2 + PConv + BiFPN + NWD loss/TAL
 
 用法：cd 项目根目录，然后 python scripts/train_sota.py
 """
@@ -14,13 +14,13 @@ os.chdir(PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "scripts"))
 
 import register_modules
-from ultralytics_modules.inner_iou import patch_ultralytics_loss
+from ultralytics_modules.nwd import patch_all_nwd
 from ultralytics import YOLO
 
 
 def main():
-    # Apply Inner-IoU loss patch before model creation
-    patch_ultralytics_loss(ratio=0.7)
+    # Apply NWD loss + NWD-TAL before model creation
+    patch_all_nwd(loss_constant=12.0, tal_constant=12.0)
 
     model = YOLO("configs/yolo11n-sota.yaml")
 

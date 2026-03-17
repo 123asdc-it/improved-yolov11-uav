@@ -22,14 +22,15 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
 from ultralytics_modules import (
-    EMA, CA, PConv, PConv_C3k2, BiFPN_Concat,
+    EMA, CA, SimAM, PConv, PConv_C3k2, BiFPN_Concat,
     RepVGGBlock, CARAFE
 )
 import ultralytics.nn.tasks as tasks
 
 # Register all custom modules into tasks namespace
 for name, cls in [
-    ("EMA", EMA), ("CA", CA),
+    ("SimAM", SimAM),  # new: zero-parameter attention
+    ("EMA", EMA), ("CA", CA),  # legacy: kept for old configs
     ("PConv", PConv), ("PConv_C3k2", PConv_C3k2),
     ("BiFPN_Concat", BiFPN_Concat),
     ("RepVGGBlock", RepVGGBlock),
@@ -153,7 +154,7 @@ def _patched_parse_model(d, ch, verbose=True):
             args.extend([reg_max, end2end, [ch[x] for x in f]])
             if m in {Detect}:
                 m.legacy = legacy
-        elif m in {EMA, CA}:  # pass-through attention: same channels
+        elif m in {EMA, CA, SimAM}:  # pass-through attention: same channels
             c2 = ch[f]
             args = [c2]
         elif m is RepVGGBlock:  # [out_channels, stride]
@@ -182,4 +183,4 @@ def _patched_parse_model(d, ch, verbose=True):
 
 
 tasks.parse_model = _patched_parse_model
-print("\u2713 Custom modules registered: CA, EMA, PConv, PConv_C3k2, BiFPN_Concat, RepVGGBlock, CARAFE")
+print("\u2713 Custom modules registered: SimAM, CA, EMA, PConv, PConv_C3k2, BiFPN_Concat, RepVGGBlock, CARAFE")

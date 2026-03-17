@@ -1,6 +1,6 @@
 """
 阶段2：YOLOv11n-Improved 改进模型训练
-改进点：P2检测头 + EMA注意力 + PConv轻量化 + BiFPN加权融合
+改进点：NWD损失/标签分配 + P2检测头 + SimAM注意力 + PConv轻量化 + BiFPN加权融合
 
 用法：cd 项目根目录，然后 python scripts/train_improved.py
 """
@@ -15,10 +15,14 @@ os.chdir(PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "scripts"))
 
 import register_modules  # ★ 必须在 YOLO 之前导入
+from ultralytics_modules.nwd import patch_all_nwd
 from ultralytics import YOLO
 
 
 def main():
+    # Apply NWD loss + NWD-TAL before model creation
+    patch_all_nwd(loss_constant=12.0, tal_constant=12.0)
+
     model = YOLO("configs/yolo11n-improved.yaml")
 
     model.train(
