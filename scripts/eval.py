@@ -1,14 +1,13 @@
 """
-统一评估脚本：评估模型的 mAP50、参数量、FPS、模型大小
-用于论文中的对比实验表格
+统一评估脚本：收集论文所需的完整指标体系
 
-用法：cd 项目根目录，然后 python scripts/eval.py --weights ... --data configs/data.yaml
+精度指标：mAP50, mAP75, mAP50-95, Precision, Recall, F1
+效率指标：Params(M), FLOPs(G), FPS, Latency(ms), ModelSize(MB)
 
-修复记录：
-- [Fix M3] 增加模型文件大小统计
-- [Fix S3] FPS 测量改为 end-to-end（含 NMS）口径，使用 ultralytics 官方 benchmark
-          warmup 从 50 降到 10，runs 从 200 降到 100，减少评估耗时
-- [Fix S3] 增加推理延迟（latency ms）统计
+用法：
+  cd 项目根目录
+  python scripts/eval.py --weights path/to/best.pt --data configs/data.yaml
+  python scripts/eval.py --weights model1.pt model2.pt --names "Baseline" "Ours"
 """
 
 import os
@@ -68,28 +67,61 @@ def get_model_size_mb(weight_path):
     return os.path.getsize(weight_path) / (1024 ** 2)
 
 
+def get_flops(model, imgsz=1280):
+    """Estimate FLOPs using ultralytics built-in profiler."""
+    try:
+        from ultralytics.utils.torch_utils import get_flops as _get_flops
+        return round(_get_flops(model.model, imgsz) / 1e9, 2)
+    except Exception:
+        try:
+            # Fallback: profile with a dummy input
+            from thop import profile
+            dummy = torch.zeros(1, 3, imgsz, imgsz).to(
+                next(model.model.parameters()).device
+            )
+            flops, _ = profile(model.model, inputs=(dummy,), verbose=False)
+            return round(flops / 1e9, 2)
+        except Exception:
+            return 0.0
+
+
 def evaluate_model(weight_path, data_yaml="configs/data.yaml", imgsz=1280, split="test"):
-    """Full evaluation of a single model."""
+    """Full evaluation of a single model — collects all metrics for paper."""
     model = YOLO(weight_path)
 
-    # mAP on test split
+    # === Accuracy metrics ===
     metrics = model.val(data=data_yaml, imgsz=imgsz, split=split)
 
-    # Parameters
-    total_params = count_parameters(model)
+    # Standard detection metrics
+    map50 = round(float(metrics.box.map50), 4)
+    map75 = round(float(metrics.box.map75), 4)
+    map50_95 = round(float(metrics.box.map), 4)
+    precision = round(float(metrics.box.mp), 4)
+    recall = round(float(metrics.box.mr), 4)
+    f1 = round(2 * precision * recall / (precision + recall + 1e-8), 4)
 
-    # FPS (end-to-end)
+    # Per-IoU-threshold AP (for detailed analysis)
+    # metrics.box.maps gives per-class AP at each IoU threshold
+
+    # === Efficiency metrics ===
+    total_params = count_parameters(model)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     fps, latency_ms = measure_fps_end2end(model, imgsz=imgsz, device=device)
-
-    # Model file size
     model_size_mb = get_model_size_mb(weight_path)
+    flops_g = get_flops(model, imgsz)
 
     return {
         "weight": weight_path,
-        "map50": round(float(metrics.box.map50), 4),
-        "map": round(float(metrics.box.map), 4),
+        # Accuracy
+        "map50": map50,
+        "map75": map75,
+        "map50_95": map50_95,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        # Efficiency
         "params_M": round(total_params / 1e6, 3),
+        "flops_G": flops_g,
         "fps": round(fps, 1),
         "latency_ms": round(latency_ms, 2),
         "model_size_mb": round(model_size_mb, 2),
@@ -114,30 +146,50 @@ def main():
 
     all_results = []
 
-    print(f"\n{'='*85}")
-    print(f" Model Evaluation Report  (split={args.split})")
-    print(f"{'='*85}")
-    print(f"{'Model':<22} {'mAP50':>7} {'mAP50-95':>9} {'Params(M)':>10} {'FPS':>7} {'Lat(ms)':>8} {'Size(MB)':>9}")
-    print("-" * 85)
+    # === Table 1: Accuracy ===
+    print(f"\n{'='*100}")
+    print(f" Evaluation Report  (split={args.split}, imgsz={args.imgsz})")
+    print(f"{'='*100}")
+
+    hdr = f"{'Model':<20} {'mAP50':>7} {'mAP75':>7} {'mAP50-95':>9} {'P':>7} {'R':>7} {'F1':>7}"
+    print(f"\n  [Accuracy]")
+    print(f"  {hdr}")
+    print(f"  {'-'*65}")
 
     for name, weight in zip(names, args.weights):
-        print(f"Evaluating {name}...", flush=True)
+        print(f"  Evaluating {name}...", flush=True)
         r = evaluate_model(weight, args.data, args.imgsz, args.split)
         r["name"] = name
         all_results.append(r)
-        print(f"{name:<22} {r['map50']:>7.4f} {r['map']:>9.4f} {r['params_M']:>10.3f} "
+        print(f"  {name:<20} {r['map50']:>7.4f} {r['map75']:>7.4f} {r['map50_95']:>9.4f} "
+              f"{r['precision']:>7.4f} {r['recall']:>7.4f} {r['f1']:>7.4f}")
+
+    # === Table 2: Efficiency ===
+    print(f"\n  [Efficiency]")
+    print(f"  {'Model':<20} {'Params(M)':>10} {'FLOPs(G)':>9} {'FPS':>7} {'Lat(ms)':>8} {'Size(MB)':>9}")
+    print(f"  {'-'*65}")
+    for r in all_results:
+        print(f"  {r['name']:<20} {r['params_M']:>10.3f} {r['flops_G']:>9.2f} "
               f"{r['fps']:>7.1f} {r['latency_ms']:>8.2f} {r['model_size_mb']:>9.2f}")
 
-    print("=" * 85)
+    print(f"\n{'='*100}")
 
     # Save results
-    os.makedirs(os.path.dirname(args.save_json), exist_ok=True)
+    os.makedirs(os.path.dirname(args.save_json) or ".", exist_ok=True)
     with open(args.save_json, "w") as f:
-        json.dump(all_results, f, indent=2)
-    print(f"\nResults saved to {args.save_json}")
-    print("\nLaTeX table row template:")
+        json.dump(all_results, f, indent=2, ensure_ascii=False)
+    print(f"Results saved to {args.save_json}")
+
+    # LaTeX template
+    print("\n  LaTeX accuracy row template:")
     for r in all_results:
-        print(f"  {r['name']} & {r['params_M']:.2f}M & {r['map50']*100:.1f} & {r['fps']:.0f} \\\\ ")
+        print(f"  {r['name']} & {r['map50']*100:.1f} & {r['map75']*100:.1f} "
+              f"& {r['map50_95']*100:.1f} & {r['precision']*100:.1f} "
+              f"& {r['recall']*100:.1f} & {r['f1']*100:.1f} \\\\")
+    print("\n  LaTeX efficiency row template:")
+    for r in all_results:
+        print(f"  {r['name']} & {r['params_M']:.2f} & {r['flops_G']:.1f} "
+              f"& {r['fps']:.0f} & {r['latency_ms']:.1f} & {r['model_size_mb']:.1f} \\\\")
 
 
 if __name__ == "__main__":
