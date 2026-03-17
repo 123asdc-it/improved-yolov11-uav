@@ -1,0 +1,10 @@
+# 无人机目标检测数据集配置
+# Ultralytics YOLO format
+
+path: datasets  # 相对路径，训练时需根据实际部署路径修改
+train: images/train
+val: images/val
+test: images/test
+
+nc: 1
+names: ['drone']

@@ -1,0 +1,64 @@
+# YOLOv11n-SOTA: 无人机极小目标检测终极版
+# 改进点（论文 Method 章节）：
+#   1. RepVGG backbone  — 训练多分支，推理重参后单3x3，精度+速度
+#   2. CA attention     — Coordinate Attention，位置感知强于EMA
+#   3. CARAFE P2 上采样 — 内容感知上采样，替换 nearest，极小目标专项
+#   4. PConv_C3k2 neck  — 轻量化卷积，降低参数量
+#   5. BiFPN 加权融合   — 可学习权重特征融合
+#   6. 4-head Detect   — P2/P3/P4/P5，覆盖极小目标
+
+nc: 1
+scales:
+  n: [0.50, 0.25, 1024]
+
+# ============================================================
+# Backbone: RepVGG-style with CA attention
+# Channel trace (width=0.25): 16->32->64->64->128->128->128->256->256->256
+# ============================================================
+backbone:
+  - [-1, 1, RepVGGBlock, [64, 2]]          # 0-P1/2  → 16ch  (stride=2)
+  - [-1, 1, RepVGGBlock, [128, 2]]         # 1-P2/4  → 32ch  (stride=2)
+  - [-1, 2, C3k2, [256, False, 0.25]]      # 2       → 64ch
+  - [-1, 1, RepVGGBlock, [256, 2]]         # 3-P3/8  → 64ch  (stride=2)
+  - [-1, 2, C3k2, [512, False, 0.25]]      # 4       → 128ch
+  - [-1, 1, CA, []]                        # 5 ★CA   → 128ch
+  - [-1, 1, RepVGGBlock, [512, 2]]         # 6-P4/16 → 128ch (stride=2)
+  - [-1, 2, C3k2, [512, True]]             # 7       → 128ch
+  - [-1, 1, CA, []]                        # 8 ★CA   → 128ch
+  - [-1, 1, RepVGGBlock, [1024, 2]]        # 9-P5/32 → 256ch (stride=2)
+  - [-1, 2, C3k2, [1024, True]]            # 10      → 256ch
+  - [-1, 1, SPPF, [1024, 5]]              # 11      → 256ch
+  - [-1, 2, C2PSA, [1024]]                # 12      → 256ch
+
+# ============================================================
+# Head: CARAFE P2 + PConv_C3k2 + BiFPN
+# ============================================================
+head:
+  # --- Top-down path ---
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 13      → 256ch (P4 size)
+  - [[-1, 8], 1, BiFPN_Concat, [1]]              # 14 BiFPN → 384ch
+  - [-1, 2, PConv_C3k2, [512]]                   # 15 PConv → 128ch
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]   # 16      → 128ch (P3 size)
+  - [[-1, 5], 1, BiFPN_Concat, [1]]               # 17 BiFPN → 256ch
+  - [-1, 2, PConv_C3k2, [256]]                    # 18 PConv → 64ch (P3/8)
+
+  # CARAFE replaces nearest upsample for P2 (critical for tiny objects)
+  - [-1, 1, CARAFE, [2]]                          # 19 ★CARAFE → 64ch (P2 size)
+  - [[-1, 2], 1, BiFPN_Concat, [1]]                # 20 BiFPN → 128ch
+  - [-1, 2, PConv_C3k2, [128]]                     # 21 PConv → 32ch (P2/4) ★
+
+  # --- Bottom-up path ---
+  - [-1, 1, RepVGGBlock, [128, 2]]                 # 22      → 32ch (stride=2)
+  - [[-1, 18], 1, BiFPN_Concat, [1]]               # 23 BiFPN → 96ch
+  - [-1, 2, PConv_C3k2, [256]]                     # 24 PConv → 64ch (P3/8)
+
+  - [-1, 1, RepVGGBlock, [256, 2]]                 # 25      → 64ch (stride=2)
+  - [[-1, 15], 1, BiFPN_Concat, [1]]               # 26 BiFPN → 192ch
+  - [-1, 2, PConv_C3k2, [512]]                     # 27 PConv → 128ch (P4/16)
+
+  - [-1, 1, RepVGGBlock, [512, 2]]                 # 28      → 128ch (stride=2)
+  - [[-1, 12], 1, BiFPN_Concat, [1]]               # 29 BiFPN → 384ch
+  - [-1, 2, C3k2, [1024, True]]                    # 30      → 256ch (P5/32)
+
+  - [[21, 24, 27, 30], 1, Detect, [nc]]            # 31 Detect(P2, P3, P4, P5)

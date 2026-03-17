@@ -1,0 +1,206 @@
+% ============================================================
+%  无人机小目标检测改进 YOLOv11 论文参考文献
+% ============================================================
+
+% -------------------- YOLO 系列 --------------------
+
+@article{redmon2016you,
+  author    = {Redmon, Joseph and Divvala, Santosh and Girshick, Ross and Farhadi, Ali},
+  title     = {You Only Look Once: Unified, Real-Time Object Detection},
+  booktitle = {Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year      = {2016},
+  pages     = {779--788},
+  doi       = {10.1109/CVPR.2016.91}
+}
+
+@article{redmon2018yolov3,
+  author  = {Redmon, Joseph and Farhadi, Ali},
+  title   = {{YOLOv3}: An Incremental Improvement},
+  journal = {arXiv preprint arXiv:1804.02767},
+  year    = {2018}
+}
+
+@software{yolov5,
+  author  = {Glenn Jocher},
+  title   = {{YOLOv5} by Ultralytics},
+  year    = {2020},
+  url     = {https://github.com/ultralytics/yolov5},
+  version = {7.0}
+}
+
+@inproceedings{wang2023yolov7,
+  author    = {Wang, Chien-Yao and Bochkovskiy, Alexey and Liao, Hong-Yuan Mark},
+  title     = {{YOLOv7}: Trainable Bag-of-Freebies Sets New State-of-the-Art for Real-Time Object Detectors},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year      = {2023},
+  pages     = {7464--7475},
+  doi       = {10.1109/CVPR52729.2023.00721}
+}
+
+@software{yolov8_ultralytics,
+  author  = {Glenn Jocher and Ayush Chaurasia and Jing Qiu},
+  title   = {Ultralytics {YOLOv8}},
+  version = {8.0.0},
+  year    = {2023},
+  url     = {https://github.com/ultralytics/ultralytics},
+  license = {AGPL-3.0}
+}
+
+@software{yolo11_ultralytics,
+  author  = {Glenn Jocher and Jing Qiu},
+  title   = {Ultralytics {YOLO11}},
+  version = {11.0.0},
+  year    = {2024},
+  url     = {https://github.com/ultralytics/ultralytics},
+  license = {AGPL-3.0}
+}
+
+@inproceedings{wang2024yolov10,
+  author    = {Wang, Ao and Chen, Hui and Liu, Lihao and Chen, Kai and Lin, Zijia and Han, Jungong and Ding, Guiguang},
+  title     = {{YOLOv10}: Real-Time End-to-End Object Detection},
+  booktitle = {Proceedings of Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2024}
+}
+
+% -------------------- 本文核心改进方法 --------------------
+
+% EMA 注意力
+@inproceedings{ouyang2023efficient,
+  author    = {Ouyang, Daliang and He, Su and Zhang, Guozhong and Luo, Mingzhu and Guo, Huaiyong and Zhan, Jian and Huang, Zhijie},
+  title     = {Efficient Multi-Scale Attention Module with Cross-Spatial Learning},
+  booktitle = {ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)},
+  year      = {2023},
+  pages     = {1--5},
+  doi       = {10.1109/ICASSP49357.2023.10096516}
+}
+
+% PConv / FasterNet
+@inproceedings{chen2023run,
+  author    = {Chen, Jierun and Kao, Shiu-hong and He, Hao and Zhuo, Weipeng and Wen, Song and Lee, Chul-Ho and Chan, S.-H. Gary},
+  title     = {Run, Don't Walk: Chasing Higher {FLOPS} for Faster Neural Networks},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year      = {2023},
+  pages     = {12021--12031},
+  doi       = {10.1109/CVPR52729.2023.01157}
+}
+
+% BiFPN / EfficientDet
+@inproceedings{tan2020efficientdet,
+  author    = {Tan, Mingxing and Pang, Ruoming and Le, Quoc V.},
+  title     = {{EfficientDet}: Scalable and Efficient Object Detection},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year      = {2020},
+  pages     = {10781--10790},
+  doi       = {10.1109/CVPR42600.2020.01079}
+}
+
+% -------------------- 特征金字塔与多尺度检测 --------------------
+
+@inproceedings{lin2017feature,
+  author    = {Lin, Tsung-Yi and Doll{\'a}r, Piotr and Girshick, Ross and He, Kaiming and Harihane, Bharath and Belongie, Serge},
+  title     = {Feature Pyramid Networks for Object Detection},
+  booktitle = {Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year      = {2017},
+  pages     = {2117--2125},
+  doi       = {10.1109/CVPR.2017.106}
+}
+
+@inproceedings{liu2018path,
+  author    = {Liu, Shu and Qi, Lu and Qin, Haifang and Shi, Jianping and Jia, Jiaya},
+  title     = {Path Aggregation Network for Instance Segmentation},
+  booktitle = {Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year      = {2018},
+  pages     = {8759--8768},
+  doi       = {10.1109/CVPR.2018.00913}
+}
+
+% -------------------- 小目标与无人机检测 --------------------
+
+@article{zhu2021detection,
+  author  = {Zhu, Pengfei and Wen, Longyin and Du, Dawei and Bian, Xiao and Fan, Heng and Hu, Qinghua and Ling, Haibin},
+  title   = {Detection and Tracking Meet Drones Challenge},
+  journal = {IEEE Transactions on Pattern Analysis and Machine Intelligence},
+  volume  = {44},
+  number  = {11},
+  pages   = {7380--7399},
+  year    = {2022},
+  doi     = {10.1109/TPAMI.2021.3119563}
+}
+
+@inproceedings{zhu2021tph,
+  author    = {Zhu, Xingkui and Lyu, Shuchang and Wang, Xu and Zhao, Qi},
+  title     = {{TPH-YOLOv5}: Improved {YOLOv5} Based on Transformer Prediction Head for Object Detection on Drone-Captured Scenarios},
+  booktitle = {Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) Workshops},
+  year      = {2021},
+  pages     = {2778--2788},
+  doi       = {10.1109/ICCVW54120.2021.00312}
+}
+
+@inproceedings{yang2019scrdet,
+  author    = {Yang, Xue and others},
+  title     = {{SCRDet}: Towards More Robust Detection for Small, Cluttered and Rotated Objects},
+  booktitle = {Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)},
+  year      = {2019},
+  pages     = {8232--8241},
+  doi       = {10.1109/ICCV.2019.00832}
+}
+
+% -------------------- 注意力机制 --------------------
+
+@inproceedings{hu2018squeeze,
+  author    = {Hu, Jie and Shen, Li and Sun, Gang},
+  title     = {Squeeze-and-Excitation Networks},
+  booktitle = {Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year      = {2018},
+  pages     = {7132--7141},
+  doi       = {10.1109/CVPR.2018.00745}
+}
+
+@inproceedings{woo2018cbam,
+  author    = {Woo, Sanghyun and Park, Jongchan and Lee, Joon-Young and Kweon, In So},
+  title     = {{CBAM}: Convolutional Block Attention Module},
+  booktitle = {Proceedings of the European Conference on Computer Vision (ECCV)},
+  year      = {2018},
+  pages     = {3--19},
+  doi       = {10.1007/978-3-030-01234-2_1}
+}
+
+% -------------------- 轻量化网络 --------------------
+
+@article{howard2017mobilenets,
+  author  = {Howard, Andrew G. and Zhu, Menglong and Chen, Bo and Kalenichenko, Dmitry and Wang, Weijun and Weyand, Tobias and Andreetto, Marco and Adam, Hartmut},
+  title   = {{MobileNets}: Efficient Convolutional Neural Networks for Mobile Vision Applications},
+  journal = {arXiv preprint arXiv:1704.04861},
+  year    = {2017}
+}
+
+@inproceedings{han2020ghostnet,
+  author    = {Han, Kai and Wang, Yunhe and Tian, Qi and Guo, Jianyuan and Xu, Chunjing and Xu, Chang},
+  title     = {{GhostNet}: More Features from Cheap Operations},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year      = {2020},
+  pages     = {1580--1589},
+  doi       = {10.1109/CVPR42600.2020.00165}
+}
+
+% -------------------- 实时检测器 --------------------
+
+@inproceedings{zhao2024detrs,
+  author    = {Zhao, Yian and Lv, Wenyu and Xu, Shangliang and Wei, Jinman and Wang, Guanzhong and Dang, Qingqing and Liu, Yi and Chen, Jie},
+  title     = {{DETRs} Beat {YOLOs} on Real-time Object Detection},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year      = {2024},
+  pages     = {16965--16974},
+  doi       = {10.1109/CVPR52733.2024.01605}
+}
+
+% -------------------- 可视化 --------------------
+
+@inproceedings{selvaraju2017grad,
+  author    = {Selvaraju, Ramprasaath R. and Cogswell, Michael and Das, Abhishek and Vedantam, Ramakrishna and Parikh, Devi and Batra, Dhruv},
+  title     = {{Grad-CAM}: Visual Explanations from Deep Networks via Gradient-Based Localization},
+  booktitle = {Proceedings of the IEEE International Conference on Computer Vision (ICCV)},
+  year      = {2017},
+  pages     = {618--626},
+  doi       = {10.1109/ICCV.2017.74}
+}
