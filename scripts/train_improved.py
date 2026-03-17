@@ -20,8 +20,8 @@ from ultralytics import YOLO
 
 
 def main():
-    # Apply NWD loss + NWD-TAL before model creation
-    patch_all_nwd(loss_constant=12.0, tal_constant=12.0)
+    # Apply SA-NWD loss + SA-NWD-TAL before model creation
+    patch_all_nwd(c_base=12.0, k=2.0, use_sa=True, use_nwd_nms=False)
 
     model = YOLO("configs/yolo11n-improved.yaml")
 
