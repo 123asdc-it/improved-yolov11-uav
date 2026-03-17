@@ -277,19 +277,12 @@ def patch_sa_nwd_tal(c_base=12.0, k=2.0):
 def patch_nwd_nms(iou_threshold=0.7, nwd_threshold=0.8, c_base=12.0, k=2.0):
     """Monkey-patch ultralytics NMS to use hybrid IoU+NWD NMS."""
     try:
-        import ultralytics.utils.ops as ops
-        _orig_nms = ops.non_max_suppression
+        import ultralytics.utils.nms as nms_module
+        _orig_nms = nms_module.non_max_suppression
 
-        def _patched_nms(prediction, conf_thres=0.25, iou_thres=0.7, classes=None,
-                         agnostic=False, multi_label=False, labels=(), max_det=300,
-                         nc=0, max_time_img=0.05, max_nms=30000, max_wh=7680,
-                         in_place=True, rotated=False, end2end=False):
+        def _patched_nms(*args, **kwargs):
             """NMS with NWD hybrid suppression for small objects."""
-            # Run standard NMS first
-            results = _orig_nms(prediction, conf_thres, iou_thres, classes,
-                                agnostic, multi_label, labels, max_det,
-                                nc, max_time_img, max_nms, max_wh,
-                                in_place, rotated, end2end)
+            results = _orig_nms(*args, **kwargs)
 
             # Apply NWD suppression on each image's results
             for i, det in enumerate(results):
@@ -304,7 +297,7 @@ def patch_nwd_nms(iou_threshold=0.7, nwd_threshold=0.8, c_base=12.0, k=2.0):
 
             return results
 
-        ops.non_max_suppression = _patched_nms
+        nms_module.non_max_suppression = _patched_nms
         print(f"\u2713 NWD-NMS patch applied (iou={iou_threshold}, nwd={nwd_threshold})")
     except Exception as e:
         print(f"\u26a0 NWD-NMS patch failed: {e}")
