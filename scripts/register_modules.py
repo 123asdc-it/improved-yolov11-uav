@@ -23,15 +23,14 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
 from ultralytics_modules import (
-    EMA, CA, SimAM, PConv, PConv_C3k2, BiFPN_Concat,
+    SimAM, PConv, PConv_C3k2, BiFPN_Concat,
     RepVGGBlock, CARAFE
 )
 import ultralytics.nn.tasks as tasks
 
 # Register all custom modules into tasks namespace
 for name, cls in [
-    ("SimAM", SimAM),  # new: zero-parameter attention
-    ("EMA", EMA), ("CA", CA),  # legacy: kept for old configs
+    ("SimAM", SimAM),
     ("PConv", PConv), ("PConv_C3k2", PConv_C3k2),
     ("BiFPN_Concat", BiFPN_Concat),
     ("RepVGGBlock", RepVGGBlock),
