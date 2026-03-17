@@ -6,7 +6,7 @@ nc: 1
 scales:
   n: [0.50, 0.25, 1024]
 
-# Backbone (with EMA attention)
+# Backbone (with SimAM zero-parameter attention)
 # Channel trace (after width=0.25): 16→32→64→64→128→128→128→128→256→256→256→256
 backbone:
   - [-1, 1, Conv, [64, 3, 2]]          # 0-P1/2  → 16ch

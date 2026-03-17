@@ -247,7 +247,7 @@ def main():
         dst_lbl = PROJECT_ROOT / "datasets_augmented" / "labels" / split
         dst_img.mkdir(parents=True, exist_ok=True)
         dst_lbl.mkdir(parents=True, exist_ok=True)
-        for f in sorted(src_img.glob("*")):
+        for f in sorted(src_img.glob("*.jpg")) + sorted(src_img.glob("*.png")):
             Image.open(f).save(dst_img / f.name, quality=95)
         for f in sorted(src_lbl.glob("*.txt")):
             with open(f) as fi, open(dst_lbl / f.name, "w") as fo:

@@ -3,16 +3,17 @@ Register custom modules with ultralytics.
 Import this module BEFORE creating any YOLO model to enable custom layers.
 
 Modules registered:
-  - CA:          Coordinate Attention (CVPR 2021)
-  - EMA:         Efficient Multi-Scale Attention (ICASSP 2023) [ablation]
+  - SimAM:       Parameter-Free Attention (ICML 2021) [primary]
   - PConv:       Partial Convolution (FasterNet, CVPR 2023)
   - PConv_C3k2:  Lightweight C3k2 with PConv
   - BiFPN_Concat: Weighted feature fusion (EfficientDet, CVPR 2020)
   - RepVGGBlock: Structural re-parameterization (CVPR 2021)
   - CARAFE:      Content-Aware ReAssembly upsampling (ICCV 2019)
+  - EMA:         Efficient Multi-Scale Attention (ICASSP 2023) [legacy]
+  - CA:          Coordinate Attention (CVPR 2021) [legacy]
 
-Loss patch (optional):
-  - patch_ultralytics_loss(): Replace CIoU with Inner-IoU
+Loss patch (see ultralytics_modules/nwd.py):
+  - patch_all_nwd(): Replace CIoU with NWD loss + NWD-TAL label assignment
 """
 
 import sys

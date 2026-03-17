@@ -29,6 +29,13 @@ __pycache__/
 # Claude Code (contains SSH credentials)
 .claude/
 
+# Session logs (may contain credentials)
+session-*.md
+
+# Sliced / augmented datasets (generated, not source)
+datasets_sliced/
+datasets_augmented/
+
 # Logs
 *.log
 nohup.out
