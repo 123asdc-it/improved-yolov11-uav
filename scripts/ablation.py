@@ -314,8 +314,8 @@ import register_modules
 # Step 2: conditionally apply NWD loss + NWD-TAL patches
 if {use_nwd!r}:
     from ultralytics_modules.nwd import patch_all_nwd
-    patch_all_nwd(loss_constant=12.0, tal_constant=12.0)
-    print("[NWD] Patched loss and TAL with NWD (constant=12.0)")
+    patch_all_nwd(c_base=12.0, k=0.0, alpha=1.0, use_sa=False, use_nwd_nms=False)
+    print("[NWD] Patched loss and TAL with standard NWD (c_base=12.0)")
 else:
     print("[NWD] Skipped — baseline without NWD")
 
