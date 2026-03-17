@@ -154,7 +154,7 @@ def _patched_parse_model(d, ch, verbose=True):
             args.extend([reg_max, end2end, [ch[x] for x in f]])
             if m in {Detect}:
                 m.legacy = legacy
-        elif m in {EMA, CA, SimAM}:  # pass-through attention: same channels
+        elif m in {SimAM}:  # pass-through attention: same channels
             c2 = ch[f]
             args = [c2]
         elif m is RepVGGBlock:  # [out_channels, stride]
@@ -183,4 +183,4 @@ def _patched_parse_model(d, ch, verbose=True):
 
 
 tasks.parse_model = _patched_parse_model
-print("\u2713 Custom modules registered: SimAM, CA, EMA, PConv, PConv_C3k2, BiFPN_Concat, RepVGGBlock, CARAFE")
+print("\u2713 Custom modules registered: SimAM, PConv, PConv_C3k2, BiFPN_Concat, RepVGGBlock, CARAFE")
