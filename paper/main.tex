@@ -3,6 +3,7 @@
 % ======================== Packages ========================
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
+\usepackage{amsthm}
 \usepackage{algorithmic}
 \usepackage{graphicx}
 \usepackage{textcomp}
@@ -13,6 +14,14 @@
 \usepackage{float}
 \usepackage{subcaption}
 \usepackage{array}
+
+% ======================== Theorem Environments ========================
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
 
 % ======================== Title ========================
 \title{SA-NWD: Scale-Adaptive Wasserstein Distance with Two-Stage Training for UAV-Based Small Object Detection}
