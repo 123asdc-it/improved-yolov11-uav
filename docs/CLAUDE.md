@@ -122,15 +122,31 @@
 | +P2+EMA+PConv | 0.9360 | 181 |
 **问题**：EMA 导致 epoch 43 就早停，消融趋势下降。决定全面切换到 SimAM + NWD。
 
+## 服务器已知问题
+
+### 路径嵌套
+`project='runs/detect'` 生成 `runs/detect/runs/detect/exp_name/`（双层嵌套）。
+收集权重时用实际路径：`runs/detect/runs/detect/exp_name/weights/best.pt`
+
+### 串行训练（OOM 约束）
+改进模型 batch=8 需要 8.1GB，SOTA batch=2 需要 3.1GB，总计超过 12GB 不能同时跑。
+执行顺序：SOTA Stage2 → Improved Two-Stage（串行）。
+Watcher 模式：`nohup bash -c 'while kill -0 PID 2>/dev/null; do sleep 60; done; python next.py >> log.txt 2>&1' &`
+
+## 当前进行中（服务器）
+
+| 实验 | 状态 | 日志 |
+|------|------|------|
+| SOTA Stage2（hybrid SA-NWD+NMS, 250ep） | 运行中（~epoch 4/250），mAP50 epoch1=0.699 | `sota_s2_log.txt` |
+| Improved Two-Stage（Stage1 CIoU 50ep + Stage2 hybrid） | 等待 SOTA 完成（watcher on PID 70731） | `improved_ts_log.txt` |
+
 ## 待完成
 
-- [ ] 消融 v2 完成 → 收集 6 组结果
-- [ ] SOTA 模型训练（train_sota.py）
-- [ ] eval.py 统一评估（FPS/Params/ModelSize）
-- [ ] 可视化（Grad-CAM、NWD 标签分配对比、检测结果对比、速度-精度图）
-- [ ] SAHI 切片训练（可选，视消融结果决定）
-- [ ] VisDrone 交叉验证（可选）
+- [ ] SOTA Stage2 完成 → 收集结果
+- [ ] Improved Two-Stage 完成 → 收集结果
+- [ ] eval.py 统一评估（mAP50/75/50-95, P, R, F1, Params, FLOPs, FPS, Size）
+- [ ] verify_error_distribution.py 验证理论假设（sigma ∝ 1/sqrt(s)）
+- [ ] 可视化（Grad-CAM、训练曲线、消融柱状图、检测结果对比）
+- [ ] VisDrone 数据集下载 + 转换 + 实验
+- [ ] 更新 paper/main.tex（方法章节：SA-NWD + 两阶段训练 + 理论推导）
 - [ ] ONNX 导出 + 推理速度
-- [ ] 更新 paper/main.tex（方法章节重写，数据填入）
-- [ ] 更新 paper/refs.bib（添加 SimAM、NWD 引用）
-- [ ] 更新 docs/操作指南.md
