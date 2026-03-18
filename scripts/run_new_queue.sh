@@ -22,7 +22,7 @@
 # Kill old session first:
 #   screen -S full_queue -X quit   (or whatever the session name is)
 
-set -e
+# Note: no set -e — individual experiment failures are caught by run_exp() exit code check
 cd /root/drone_detection
 
 LOG_DIR="logs"

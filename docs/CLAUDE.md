@@ -261,8 +261,8 @@ seed=0, pretrained='yolo11n.pt'
 ## 对话计数器
 
 ```
-当前计数：3 / 5
-上次快照：2026-03-19，第 2 轮
+当前计数：1 / 5
+上次快照：2026-03-19，第 3 轮
 
 每 5 轮对话后触发快照，计数归零。
 ```
@@ -273,6 +273,13 @@ seed=0, pretrained='yolo11n.pt'
 - `configs/ablation/` 和 `eval_results.json` 已加 `.gitignore` 例外，**入 git**
 - 服务器数据同步到本地用 rsync，本地代码更新同步到服务器也用 rsync，两端保持一致
 - 服务器无 git，代码版本管理只在本地进行
+
+## 上下文快照（2026-03-19，第 3 轮）
+
+- 当前进展：完成所有可操作的 Day-0 任务：代码修复 C1-C5（nwd.py k 默认值、clamp、queue set-e）；论文 P0-P11 紧急修改全部落地（标题、摘要、贡献列表、scale-equivariant→scale-adaptive、NMS降级等）；P12-P34 高优先级修改全部落地；refs.bib 修复（@misc→@inproceedings、删主观note、加AI-TOD引用）；新建 10 个脚本（run_p2_only、run_working_point_log、run_tal_ablation、run_asanwd_compare、run_nwd_nms、convert_aitod_to_yolo、run_aitod_queue.sh、run_aitod_{baseline,nwd_fixed,sanwd,sanwd_p2,p2only}.py）；scripts/README.md 更新为 27 个文件 7 组。
+- 最新决定：所有 Day-0 代码/论文/脚本任务均已完成；verify_error_distribution.py 的 bug 实际已修复（L266 已是 cfg.get("path", ...)），README.md 注释已更新
+- 服务器/实验状态：私有集新队列仍在运行（alpha=0.3/0.7 → Exp D → Exp E → k-sweep）；E1-E6+E_p2only 脚本已就绪，待服务器队列完成后部署；AI-TOD 脚本就绪，待 xView 账号审批后启动
+- 待完成：（1）服务器实验结果回来后填入论文消融表（Exp D/E/k-sweep/alpha sweep）；（2）E1 结果确定 Proposition 2 叙事角度；（3）Theorem 1 完整证明（附录，T2）；（4）AI-TOD xView 账号审批后启动 E7-E12；（5）FPS 重测（E_fps，用 nwd_p2/best.pt）
 
 ## 上下文快照（2026-03-19，第 2 轮）
 

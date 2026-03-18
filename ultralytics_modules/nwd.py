@@ -69,7 +69,7 @@ def bbox_area(bboxes, eps=1e-7):
 # SA-NWD: Scale-Adaptive Normalized Wasserstein Distance
 # ============================================================
 
-def sa_nwd(box1, box2, c_base=12.0, k=2.0, eps=1e-7):
+def sa_nwd(box1, box2, c_base=12.0, k=1.0, eps=1e-7):
     """Scale-Adaptive Normalized Wasserstein Distance (SA-NWD).
 
     Core innovation: the normalization constant C adapts to object scale.
@@ -82,7 +82,7 @@ def sa_nwd(box1, box2, c_base=12.0, k=2.0, eps=1e-7):
     Args:
         box1, box2: (..., 4) tensors in xyxy format
         c_base: Base normalization constant (default 12.0)
-        k: Scale adaptation factor (default 2.0, range 1.0-3.0)
+        k: Scale adaptation factor (default 1.0, range 0.5-3.0; k=0 recovers standard NWD)
     Returns:
         score: (...,) tensor in [0, 1], higher = more similar
     """
@@ -94,7 +94,8 @@ def sa_nwd(box1, box2, c_base=12.0, k=2.0, eps=1e-7):
     area1 = bbox_area(box1, eps)
     area2 = bbox_area(box2, eps)
     avg_area = (area1 + area2) / 2.0
-    c_adapt = c_base * (1.0 + k / torch.sqrt(avg_area + eps))
+    avg_area = avg_area.clamp(min=1e-4)  # C5: lower bound clamp (stride-norm coords)
+    c_adapt = c_base * (1.0 + k / torch.sqrt(avg_area))
 
     score = torch.exp(-torch.sqrt(w2 + eps) / c_adapt)
     return score
@@ -188,7 +189,7 @@ def nwd_nms(boxes, scores, iou_threshold=0.7, nwd_threshold=0.8,
 # Monkey patches for ultralytics integration
 # ============================================================
 
-def patch_sa_nwd_loss(c_base=12.0, k=2.0, alpha=0.5):
+def patch_sa_nwd_loss(c_base=12.0, k=1.0, alpha=0.5):
     """Monkey-patch ultralytics BboxLoss to use hybrid SA-NWD + CIoU loss.
 
     Hybrid loss = alpha * SA-NWD + (1-alpha) * CIoU

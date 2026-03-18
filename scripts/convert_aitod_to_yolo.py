@@ -1,0 +1,213 @@
+"""
+convert_aitod_to_yolo.py — Convert AI-TOD dataset to Ultralytics YOLO format
+
+AI-TOD dataset:
+  - Paper: "Tiny Object Detection in Aerial Images" (ICPR 2021)
+  - URL: https://github.com/jwwangchn/AI-TOD
+  - Format: COCO JSON (train/val/test splits)
+  - 8 categories: airplane, bridge, storage-tank, ship, swimming-pool,
+                  vehicle, person, wind-mill
+  - ~28,036 images, ~700,621 instances
+  - Image size: 800×800 (already cropped)
+
+Output structure (Ultralytics YOLO format):
+  datasets/aitod/
+  ├── images/
+  │   ├── train/   *.png
+  │   ├── val/     *.png
+  │   └── test/    *.png
+  └── labels/
+      ├── train/   *.txt  (class cx cy w h, normalized [0,1])
+      ├── val/     *.txt
+      └── test/    *.txt
+
+Usage:
+  # Download AI-TOD from https://github.com/jwwangchn/AI-TOD
+  # Place annotations in /path/to/aitod_raw/annotations/
+  # Place images in /path/to/aitod_raw/images/
+  python scripts/convert_aitod_to_yolo.py \\
+      --src /path/to/aitod_raw \\
+      --dst datasets/aitod \\
+      --splits train val test
+
+Note on xView:
+  AI-TOD version 2 (AI-TOD-v2) incorporates xView images.
+  If you only have AI-TOD v1, skip xView-sourced images (already handled below).
+"""
+
+import json
+import argparse
+import shutil
+from pathlib import Path
+from tqdm import tqdm
+
+
+# AI-TOD category mapping (category_id → class_idx, class_name)
+AITOD_CATEGORIES = {
+    1: (0, 'airplane'),
+    2: (1, 'bridge'),
+    3: (2, 'storage-tank'),
+    4: (3, 'ship'),
+    5: (4, 'swimming-pool'),
+    6: (5, 'vehicle'),
+    7: (6, 'person'),
+    8: (7, 'wind-mill'),
+}
+
+
+def coco_to_yolo(annotation: dict, img_w: int, img_h: int):
+    """Convert COCO annotation to YOLO format.
+
+    COCO: [x_min, y_min, width, height] (absolute pixels)
+    YOLO: [class_id, cx, cy, w, h] (normalized [0,1])
+    """
+    cat_id = annotation['category_id']
+    class_idx = AITOD_CATEGORIES.get(cat_id, (None,))[0]
+    if class_idx is None:
+        return None
+
+    x_min, y_min, w, h = annotation['bbox']
+    cx = (x_min + w / 2) / img_w
+    cy = (y_min + h / 2) / img_h
+    w_norm = w / img_w
+    h_norm = h / img_h
+
+    # Clamp to [0, 1]
+    cx = max(0.0, min(1.0, cx))
+    cy = max(0.0, min(1.0, cy))
+    w_norm = max(0.0, min(1.0, w_norm))
+    h_norm = max(0.0, min(1.0, h_norm))
+
+    # Skip degenerate boxes
+    if w_norm < 1e-5 or h_norm < 1e-5:
+        return None
+
+    return f"{class_idx} {cx:.6f} {cy:.6f} {w_norm:.6f} {h_norm:.6f}"
+
+
+def convert_split(src_dir: Path, dst_dir: Path, split: str, copy_images: bool = True):
+    """Convert one split (train/val/test) from COCO to YOLO format."""
+    ann_file = src_dir / 'annotations' / f'aitod_{split}_v1.json'
+    if not ann_file.exists():
+        # Try alternative naming
+        ann_file = src_dir / 'annotations' / f'ai_tod_{split}.json'
+    if not ann_file.exists():
+        print(f'[WARN] Annotation file not found for split={split}: {ann_file}')
+        return 0, 0
+
+    print(f'[{split}] Loading {ann_file}...')
+    with open(ann_file) as f:
+        coco = json.load(f)
+
+    # Build image info lookup
+    img_info = {img['id']: img for img in coco['images']}
+
+    # Build annotation lookup: image_id → list of annotations
+    ann_by_image = {}
+    for ann in coco['annotations']:
+        ann_by_image.setdefault(ann['image_id'], []).append(ann)
+
+    # Prepare output directories
+    out_img_dir = dst_dir / 'images' / split
+    out_lbl_dir = dst_dir / 'labels' / split
+    out_img_dir.mkdir(parents=True, exist_ok=True)
+    out_lbl_dir.mkdir(parents=True, exist_ok=True)
+
+    n_images = 0
+    n_boxes = 0
+
+    for img_id, img in tqdm(img_info.items(), desc=f'[{split}]'):
+        img_filename = img['file_name']
+        img_w = img['width']
+        img_h = img['height']
+
+        # Source image
+        src_img = src_dir / 'images' / img_filename
+        if not src_img.exists():
+            # Try split-specific subfolder
+            src_img = src_dir / 'images' / split / img_filename
+        if not src_img.exists():
+            continue
+
+        # Convert annotations
+        anns = ann_by_image.get(img_id, [])
+        yolo_lines = []
+        for ann in anns:
+            line = coco_to_yolo(ann, img_w, img_h)
+            if line is not None:
+                yolo_lines.append(line)
+                n_boxes += 1
+
+        # Write label file (even if empty → image with no objects)
+        stem = Path(img_filename).stem
+        lbl_path = out_lbl_dir / f'{stem}.txt'
+        with open(lbl_path, 'w') as f:
+            f.write('\n'.join(yolo_lines))
+
+        # Copy or symlink image
+        if copy_images:
+            dst_img = out_img_dir / img_filename
+            dst_img.parent.mkdir(parents=True, exist_ok=True)
+            if not dst_img.exists():
+                shutil.copy2(src_img, dst_img)
+
+        n_images += 1
+
+    print(f'[{split}] Done: {n_images} images, {n_boxes} boxes')
+    return n_images, n_boxes
+
+
+def write_data_yaml(dst_dir: Path, splits: list):
+    """Write aitod_data.yaml for Ultralytics training."""
+    class_names = [v[1] for v in sorted(AITOD_CATEGORIES.values(), key=lambda x: x[0])]
+    yaml_content = f"""# AI-TOD dataset configuration for Ultralytics YOLO
+# Converted by scripts/convert_aitod_to_yolo.py
+# Paper: "Tiny Object Detection in Aerial Images" (ICPR 2021)
+
+path: {dst_dir.resolve()}
+train: images/train
+val: images/val
+test: images/test
+
+nc: {len(class_names)}
+names: {class_names}
+"""
+    out = dst_dir / 'aitod_data.yaml'
+    with open(out, 'w') as f:
+        f.write(yaml_content)
+    print(f'[YAML] Written: {out}')
+    return out
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Convert AI-TOD to Ultralytics YOLO format')
+    parser.add_argument('--src', required=True, help='Path to raw AI-TOD directory')
+    parser.add_argument('--dst', default='datasets/aitod', help='Output directory')
+    parser.add_argument('--splits', nargs='+', default=['train', 'val', 'test'])
+    parser.add_argument('--no-copy', action='store_true',
+                        help='Skip copying images (use when images already in dst)')
+    args = parser.parse_args()
+
+    src = Path(args.src)
+    dst = Path(args.dst)
+    copy_images = not args.no_copy
+
+    print(f'Converting AI-TOD: {src} → {dst}')
+    print(f'Splits: {args.splits}')
+
+    total_images = 0
+    total_boxes = 0
+    for split in args.splits:
+        n_img, n_box = convert_split(src, dst, split, copy_images=copy_images)
+        total_images += n_img
+        total_boxes += n_box
+
+    yaml_path = write_data_yaml(dst, args.splits)
+
+    print(f'\nConversion complete:')
+    print(f'  Total images: {total_images}')
+    print(f'  Total boxes:  {total_boxes}')
+    print(f'  Data YAML:    {yaml_path}')
+    print(f'\nNext step:')
+    print(f'  Edit datasets/aitod/aitod_data.yaml to set correct absolute path')
+    print(f'  Then run: python scripts/run_aitod_queue.sh')
