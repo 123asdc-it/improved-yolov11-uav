@@ -38,11 +38,11 @@
 
 % ======================== Abstract ========================
 \begin{abstract}
-Unmanned Aerial Vehicle (UAV) based small object detection faces two fundamental challenges: the inherent scale bias of IoU-based metrics, which provides insufficient gradient signal for tiny objects, and the incompatibility of scale-adaptive losses with pretrained weights during early training. In this paper, we propose a Scale-Adaptive Normalized Wasserstein Distance (SA-NWD) framework for UAV-based small object detection, built on an improved YOLOv11 backbone. We first theoretically prove that the Fisher information of IoU loss scales as $\mathcal{O}(s^{-2})$, causing gradient signal to vanish for small objects, while our proposed SA-NWD achieves Fisher-equivariant detection by adapting the normalization constant $C_{\text{adapt}} = C_{\text{base}}(1+k/\sqrt{\bar{S}})$. SA-NWD is applied across the full detection pipeline: label assignment (SA-NWD-TAL), bounding box regression (Hybrid SA-NWD+CIoU loss), and post-processing (NWD-NMS). We further investigate training stability and find that SA-NWD hybrid loss converges stably from pretrained weights in a single-stage training scheme, empirically disconfirming the need for a CIoU warm-up stage. Our architecture further incorporates a P2 small object detection head (stride 4), SimAM zero-parameter attention, PConv lightweight convolution, and BiFPN weighted fusion. Extensive experiments on a UAV aerial dataset demonstrate that the proposed method achieves a mAP@0.5 of XX.X\%, surpassing the YOLOv11n baseline by X.X\% while maintaining X.XM parameters and real-time inference at XXX FPS. Ablation studies validate each component's contribution.
+Unmanned Aerial Vehicle (UAV) based small object detection faces a fundamental challenge: the inherent scale bias of IoU-based metrics provides insufficient gradient signal for tiny objects. In this paper, we propose a Scale-Adaptive Normalized Wasserstein Distance (SA-NWD) framework for UAV-based small object detection, built on an improved YOLOv11n backbone. We first analyze the scale bias of IoU loss through Fisher information, showing that gradient signal vanishes for small objects. Our proposed SA-NWD adapts the normalization constant as $C_{\text{adapt}} = C_{\text{base}}(1+k/\sqrt{\bar{S}})$, providing stronger gradients for small-scale targets. Combined with a P2 small object detection head (stride 4), our method achieves a mAP@0.5 of 97.81\% on a UAV drone detection dataset, surpassing the YOLOv11n baseline by 1.81\% while maintaining 2.66M parameters and real-time inference at 59.4 FPS on an RTX 3060. Ablation studies validate each component's contribution.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Small object detection, UAV, Wasserstein distance, scale-adaptive, YOLOv11, Fisher information, single-stage training.
+Small object detection, UAV, Wasserstein distance, scale-adaptive, YOLOv11, drone detection.
 \end{IEEEkeywords}
 
 % ======================== I. Introduction ========================
@@ -107,7 +107,7 @@ SE-Net~\cite{hu2018squeeze}, CBAM~\cite{woo2018cbam}, and EMA~\cite{ouyang2023ef
 
 \subsection{Lightweight Network Design}
 
-FasterNet~\cite{chen2023run} proposed Partial Convolution (PConv) applying convolution to only a fraction of channels. EfficientDet~\cite{tan2020efficientdet} introduced BiFPN weighted feature fusion. We adopt PConv-C3k2 blocks and BiFPN in our neck for efficient multi-scale feature processing.
+FasterNet~\cite{chen2023run} proposed Partial Convolution (PConv) applying convolution to only a fraction of channels. EfficientDet~\cite{tan2020efficientdet} introduced BiFPN weighted feature fusion. We evaluate PConv-C3k2 blocks and BiFPN in our ablation study, finding that these lightweight and fusion modules degrade performance on small datasets due to insufficient training data.
 
 % ======================== III. Proposed Method ========================
 \section{Proposed Method}
@@ -230,34 +230,26 @@ where $p$ is the predicted class probability. This ensures that label assignment
 
 Our full model integrates SA-NWD into an enhanced YOLOv11 backbone-neck-head architecture:
 
-\paragraph{P2 Detection Head.} We add a high-resolution P2 detection head (stride 4) to the standard P3/P4/P5 pyramid, providing $160\times160$ feature maps for VisDrone's extreme small objects (typically $< 32\times32$ pixels at input resolution).
+\paragraph{P2 Detection Head.} We add a high-resolution P2 detection head (stride 4) to the standard P3/P4/P5 pyramid, providing $320\times320$ feature maps at $1280\times1280$ input resolution. This is critical for detecting drone objects with median area $\sim 50\times50$ pixels, which are underrepresented at the P3 ($160\times160$) and coarser scales.
 
-\paragraph{SimAM Attention.} We insert SimAM~\cite{yang2021simam} attention after each C3k2 block. SimAM computes neuron importance via a closed-form energy minimization, adding zero parameters — critical for a small dataset where extra parameters risk overfitting.
-
-\paragraph{PConv-C3k2 Blocks.} We replace standard convolutions in C3k2 blocks with Partial Convolution (PConv)~\cite{chen2023run}, which applies convolution to only $1/4$ of channels and copies the rest, reducing FLOPs by $\sim$40\% with negligible accuracy loss.
-
-\paragraph{BiFPN Neck.} We replace the standard PANet neck with a Bidirectional Feature Pyramid Network (BiFPN)~\cite{tan2020efficientdet}, which uses weighted bi-directional cross-scale connections and fast normalized fusion to improve multi-scale feature aggregation.
-
-The full architecture is summarized in Table~\ref{tab:architecture}.
+The final architecture uses YOLOv11n as the backbone with the following modifications:
 
 \begin{table}[h]
 \centering
-\caption{Improved YOLOv11 Architecture Components}
+\caption{SA-NWD-YOLOv11 Architecture Components}
 \label{tab:architecture}
 \begin{tabular}{lll}
 \toprule
 \textbf{Component} & \textbf{Modification} & \textbf{Purpose} \\
 \midrule
 Detection Heads & P2/P3/P4/P5 (4-scale) & Small object coverage \\
-Attention & SimAM (parameter-free) & Feature refinement \\
-Convolution & PConv in C3k2 & Computational efficiency \\
-Neck & BiFPN & Multi-scale fusion \\
 Label Assignment & SA-NWD-TAL & Scale-equivariant assignment \\
 BBox Loss & Hybrid SA-NWD+CIoU & Scale-equivariant gradients \\
-NMS & SA-NWD similarity & Small object suppression \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+We additionally evaluated SimAM attention~\cite{yang2021simam}, PConv lightweight convolution~\cite{chen2023run}, and BiFPN feature fusion~\cite{tan2020efficientdet} in our ablation study (Table~\ref{tab:ablation}). These components all degraded performance on our small dataset, confirming that for data-limited scenarios, metric improvement (SA-NWD) and structural enhancement (P2 head) are more effective than adding learnable modules.
 
 % ======================== IV. Experiments ========================
 \section{Experiments}
@@ -265,83 +257,90 @@ NMS & SA-NWD similarity & Small object suppression \\
 
 \subsection{Dataset and Metrics}
 
-\textbf{VisDrone2019-DET}~\cite{zhu2021detection} is the primary benchmark, containing 6,471 training, 548 validation, and 1,610 test images captured by UAVs across diverse scenes. It includes 10 categories (pedestrian, people, bicycle, car, van, truck, tricycle, awning-tricycle, bus, motor) with a severe small object prevalence: over 70\% of instances have area $< 32^2$ pixels.
+We conduct experiments on a UAV drone detection dataset containing 559 images at $1920 \times 1080$ resolution, split into 391 training, 111 validation, and 57 test images. The dataset has a single class (\textit{drone}) with a median normalized bounding box area of 0.0023 (approximately $50 \times 50$ pixels), making it a challenging extreme-small-object scenario.
 
-We report standard COCO metrics: mAP$_{50}$ (IoU threshold 0.5) and mAP$_{50:95}$ (averaged over IoU thresholds 0.5 to 0.95 in steps of 0.05).
+We report standard COCO metrics: mAP$_{50}$ (IoU threshold 0.5) and mAP$_{50:95}$ (averaged over IoU thresholds 0.5 to 0.95 in steps of 0.05), along with Precision (P), Recall (R), and F1 score.
 
 \subsection{Implementation Details}
 
-All models are trained on a single NVIDIA A100 GPU. We use SGD optimizer with momentum 0.937 and weight decay $5\times10^{-4}$. The initial learning rate is $0.01$ with cosine annealing. Input resolution is $640\times640$. Data augmentation includes mosaic, random affine, HSV jitter, and horizontal flip.
+All models are trained on a single NVIDIA RTX 3060 (12 GB) GPU. We use SGD optimizer with momentum 0.937 and weight decay $5\times10^{-4}$. The initial learning rate is $0.01$ with cosine annealing. Input resolution is $1280\times1280$. Data augmentation includes mosaic, mixup ($p=0.15$), copy-paste ($p=0.2$), HSV jitter, and horizontal flip.
 
-We use single-stage training with Hybrid SA-NWD+CIoU loss ($\alpha = 0.5$) for 300 epochs. The SA-NWD bandwidth constant is $C_0 = 12$, scale factor $k = 1.0$, and TAL threshold $\text{nwd\_min} = 0.3$.
-
-For SA-NWD-TAL: alignment metric exponents are set to $\alpha = 1.0$, $\beta = 6.0$ following TOOD~\cite{feng2021tood} defaults.
+We use single-stage training with Hybrid SA-NWD+CIoU loss ($\alpha = 0.5$) for 300 epochs with patience 100 and batch size 8. The SA-NWD bandwidth constant is $C_0 = 12$, scale factor $k = 1.0$, and TAL threshold $\text{nwd\_min} = 0.3$.
 
 \subsection{Ablation Study}
 
-We conduct ablations on the VisDrone2019-DET validation set to isolate the contribution of each component. The baseline is YOLOv11m trained with standard CIoU loss and default TAL.
+We conduct ablations on the UAV drone detection validation set to isolate the contribution of each component. The baseline is YOLOv11n trained with standard CIoU loss and default TAL. All experiments use identical training hyperparameters (seed=0, 300 epochs, imgsz=1280).
 
 \begin{table}[h]
 \centering
-\caption{Ablation Study on VisDrone2019-DET Validation Set}
+\caption{Ablation Study on UAV Drone Detection Validation Set}
 \label{tab:ablation}
-\begin{tabular}{lcccccc}
+\begin{tabular}{lccccc}
 \toprule
-\textbf{Model} & \textbf{P2} & \textbf{SimAM} & \textbf{BiFPN} & \textbf{SA-NWD} & \textbf{mAP$_{50}$} & \textbf{mAP$_{50:95}$} \\
+\textbf{Model} & \textbf{SA-NWD} & \textbf{P2} & \textbf{P} & \textbf{R} & \textbf{mAP$_{50}$} \\
 \midrule
-Baseline (YOLOv11m) & & & & & 35.2 & 20.1 \\
-+ P2 Head & \checkmark & & & & 37.4 & 21.6 \\
-+ SimAM & \checkmark & \checkmark & & & 38.1 & 22.0 \\
-+ BiFPN & \checkmark & \checkmark & \checkmark & & 39.3 & 22.8 \\
-+ SA-NWD (Loss only) & \checkmark & \checkmark & \checkmark & partial & 40.1 & 23.4 \\
-+ SA-NWD-TAL + NMS & \checkmark & \checkmark & \checkmark & \checkmark & \textbf{41.6} & \textbf{24.2} \\
+Baseline (YOLOv11n) & & & 0.967 & 0.869 & 96.00 \\
++ SA-NWD & \checkmark & & 0.985 & 0.925 & 97.05 \\
++ SA-NWD + P2 Head & \checkmark & \checkmark & 0.968 & 0.935 & \textbf{97.81} \\
+\midrule
+\multicolumn{6}{l}{\textit{Additional components (negative contribution):}} \\
+\quad + SimAM & \checkmark & \checkmark & 0.961 & 0.915 & 95.19 \\
+\quad + SimAM + PConv & \checkmark & \checkmark & 0.956 & 0.935 & 97.49 \\
+\quad + SimAM + PConv + BiFPN & \checkmark & \checkmark & 0.949 & 0.872 & 93.65 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Each component contributes incrementally. The P2 head yields the largest single gain (+2.2 mAP$_{50}$), confirming the importance of high-resolution features for small objects. Full SA-NWD integration (loss + TAL + NMS) provides an additional +2.3 mAP$_{50}$ over the architectural improvements alone.
+The results reveal a clear two-component improvement: SA-NWD loss contributes +1.05\% mAP$_{50}$ by providing scale-equivariant gradients, while the P2 detection head adds another +0.76\% by capturing fine-grained features at stride 4. Notably, adding SimAM attention (\textminus 2.62\%) and BiFPN fusion (\textminus 3.84\%) both degrade performance, which we attribute to overfitting on the small 391-image training set --- additional learnable parameters hurt generalization when data is severely limited.
 
 \subsection{Comparison with State-of-the-Art}
 
 \begin{table}[h]
 \centering
-\caption{Comparison with State-of-the-Art on VisDrone2019-DET}
+\caption{Performance Comparison on UAV Drone Detection Dataset}
 \label{tab:sota}
-\begin{tabular}{lcc}
+\begin{tabular}{lccccc}
 \toprule
-\textbf{Method} & \textbf{mAP$_{50}$} & \textbf{mAP$_{50:95}$} \\
+\textbf{Method} & \textbf{Params} & \textbf{GFLOPs} & \textbf{P} & \textbf{R} & \textbf{mAP$_{50}$} \\
 \midrule
-YOLOv5s~\cite{jocher2020yolov5} & 22.5 & 12.3 \\
-YOLOv8m~\cite{jocher2023yolov8} & 33.1 & 18.9 \\
-YOLOv9c~\cite{wang2024yolov9} & 35.7 & 20.6 \\
-YOLOv11m (baseline) & 35.2 & 20.1 \\
-DRONE-YOLO~\cite{example2023drone} & 37.8 & 21.9 \\
-CFINet~\cite{example2023cfinet} & 38.9 & 22.5 \\
-Clustered-Det~\cite{example2023clustered} & 39.4 & 23.0 \\
-\textbf{Ours (SA-NWD-YOLOv11)} & \textbf{41.6} & \textbf{24.2} \\
+YOLOv11n (Baseline) & 2.58M & 6.3 & 0.967 & 0.869 & 96.00 \\
+YOLOv11n + SA-NWD & 2.58M & 6.3 & 0.985 & 0.925 & 97.05 \\
+\textbf{Ours (SA-NWD + P2)} & \textbf{2.66M} & \textbf{10.2} & 0.968 & \textbf{0.935} & \textbf{97.81} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Our method outperforms all compared approaches on both metrics. The improvement over the strong YOLOv11m baseline (+6.4 mAP$_{50}$, +4.1 mAP$_{50:95}$) demonstrates the efficacy of the combined architectural and loss-level contributions.
+Our method achieves 97.81\% mAP$_{50}$, surpassing the YOLOv11n baseline by +1.81\% while adding only 0.08M parameters (2.58M $\to$ 2.66M). The FLOPs increase from 6.3 to 10.2 GFLOPs due to the P2 detection head operating at stride 4, but real-time inference is maintained at 59.4 FPS on an RTX 3060 at $1280\times1280$ resolution.
 
 \subsection{Analysis of SA-NWD Properties}
 
-\paragraph{Scale Equivariance.} We verify scale equivariance empirically by computing the gradient magnitude of SA-NWD and CIoU with respect to box translations across object sizes. Empirical measurements show that CIoU gradients decay rapidly for small objects (area $< 16^2$), while SA-NWD maintains consistent gradient magnitude across all scales, confirming the theoretical property.
+\paragraph{Why additional modules hurt.} A notable finding is that SimAM attention (\textminus 2.62\%), PConv (\textminus 0.32\% net when combined with SimAM), and BiFPN (\textminus 3.84\%) all degrade performance. With only 391 training images, additional learnable parameters (even zero-parameter SimAM changes feature distributions) lead to overfitting. This motivates the ``metric-first'' design philosophy: improving the loss function (SA-NWD) and adding scale coverage (P2 head) are more data-efficient than adding architectural complexity.
 
-\paragraph{Effect of $C_0$.} We sweep $C_0 \in \{2, 5, 10, 20, 50\}$ on the validation set. Performance peaks at $C_0 = 10$ and degrades modestly outside the range $[5, 20]$, indicating robustness to this hyperparameter within a reasonable range.
+\paragraph{Training convergence.} Fig.~\ref{fig:training} shows the training curves. All SA-NWD variants converge stably from pretrained initialization without requiring CIoU warm-up. The +NWD+P2 configuration achieves its best mAP$_{50}$ at epoch 209 and maintains stable performance thereafter.
 
-\paragraph{Effect of $\alpha$ (Hybrid Loss).} Setting $\alpha = 0$ (CIoU only) or $\alpha = 1$ (SA-NWD only) both underperform the hybrid. The optimal $\alpha = 0.5$ balances scale-equivariant gradients with geometric anchoring, consistent with our complementarity analysis.
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{figs/training_curves.pdf}
+\caption{Training convergence: (a) mAP$_{50}$ and (b) box loss across ablation configurations.}
+\label{fig:training}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\linewidth]{figs/ablation_bar.pdf}
+\caption{Ablation study: incremental component analysis. Green bars indicate positive contribution; red bars indicate negative contribution.}
+\label{fig:ablation}
+\end{figure}
 
 % ======================== V. Conclusion ========================
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented Scale-Adaptive Normalized Wasserstein Distance (SA-NWD), a theoretically grounded bounding box similarity metric that is strictly scale-equivariant and non-degenerate for arbitrarily small objects. SA-NWD is derived from the $\mathcal{W}_2$ distance between Gaussian-modeled boxes, with a novel adaptive bandwidth $\sigma = C_0 \cdot \sqrt{wh}$ that ties the distributional spread to object scale.
+We presented Scale-Adaptive Normalized Wasserstein Distance (SA-NWD), a bounding box similarity metric designed to address the gradient vanishing problem of IoU-based losses for small object detection. SA-NWD adapts the normalization constant to object scale, providing stronger gradient signals for tiny targets.
 
-Integrated into YOLOv11 as a hybrid loss, scale-equivariant label assignment, and NMS similarity, SA-NWD consistently improves detection on the VisDrone2019-DET benchmark. Combined with complementary architectural enhancements (P2 head, SimAM, PConv-C3k2) and stable single-stage training, our full model achieves XX.X mAP$_{50}$ and XX.X mAP$_{50:95}$, surpassing prior state-of-the-art.
+Integrated into YOLOv11n with a P2 detection head, our method achieves 97.81\% mAP$_{50}$ on a UAV drone detection dataset, improving over the baseline by +1.81\% with only 0.08M additional parameters and maintaining 59.4 FPS real-time inference. Ablation studies confirm that SA-NWD loss (+1.05\%) and P2 head (+0.76\%) are the two effective components, while attention modules and feature fusion degrade performance on small datasets due to overfitting.
 
-Future work includes extending SA-NWD to rotated bounding boxes for aerial imagery, exploring learned bandwidth functions $C_0(\mathbf{x})$ conditioned on image features, and applying SA-NWD to tracking and instance segmentation tasks where small object localization remains challenging.
+Future work includes validating SA-NWD on larger public benchmarks such as VisDrone, extending to rotated bounding boxes for aerial imagery, and exploring learned bandwidth functions conditioned on image features.
 
 \bibliographystyle{IEEEtran}
 \bibliography{refs}

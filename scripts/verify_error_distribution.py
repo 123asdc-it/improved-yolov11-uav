@@ -263,8 +263,11 @@ def main():
     import yaml
     with open(args.data) as f:
         cfg = yaml.safe_load(f)
-    val_key = cfg.get("val", "datasets/images/val")
-    val_dir = Path(val_key) if Path(val_key).is_absolute() else PROJECT_ROOT / val_key
+    data_root = cfg.get("path", "datasets")
+    val_sub = cfg.get("val", "images/val")
+    val_dir = Path(data_root) / val_sub
+    if not val_dir.is_absolute():
+        val_dir = PROJECT_ROOT / val_dir
     print(f"[INFO] Val dir: {val_dir}")
 
     areas, deltas = collect_errors(
