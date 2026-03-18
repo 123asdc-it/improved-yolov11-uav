@@ -257,8 +257,20 @@ def patch_sa_nwd_loss(c_base=12.0, k=2.0, alpha=0.5):
         print(f"\u26a0 SA-NWD loss patch failed: {e}")
 
 
-def patch_sa_nwd_tal(c_base=12.0, k=2.0, nwd_min=0.3):
-    """Monkey-patch ultralytics TaskAlignedAssigner to use SA-NWD."""
+def patch_sa_nwd_tal(c_base=12.0, k=1.0, nwd_min=0.3):
+    """Monkey-patch ultralytics TaskAlignedAssigner to use SA-NWD.
+
+    nwd_min controls the minimum SA-NWD score for a positive anchor.
+    Scores below nwd_min are zeroed out, preventing low-quality anchors
+    from becoming positives (which caused precision collapse in earlier versions).
+
+    Typical range: 0.2~0.4. Default 0.3 is stable for drone dataset.
+    Lower values give more positive samples but risk false positives.
+
+    Bug fix: previous version had nwd_min parameter but used hardcoded 0.01,
+    which let almost all anchors pass and caused P to collapse to ~0.1.
+    Now nwd_min is correctly applied.
+    """
     try:
         from ultralytics.utils.tal import TaskAlignedAssigner
 
@@ -280,18 +292,20 @@ def patch_sa_nwd_tal(c_base=12.0, k=2.0, nwd_min=0.3):
             ind[1] = gt_labels.long().squeeze(-1)
             bbox_scores[mask_gt] = pd_scores[ind[0], :, ind[1]][mask_gt]
 
-            # SA-NWD instead of IoU
+            # SA-NWD instead of IoU for label assignment
             pd_boxes = pd_bboxes.unsqueeze(1).expand(-1, self.n_max_boxes, -1, -1)[mask_gt]
             gt_boxes = gt_bboxes.unsqueeze(2).expand(-1, -1, na, -1)[mask_gt]
             nwd_scores = sa_nwd(pd_boxes, gt_boxes, c_base=c_base, k=k)
-            nwd_scores = nwd_scores * (nwd_scores >= 0.01).float()  # threshold fix
+            # Apply nwd_min threshold: zero out low-quality matches
+            # This is the key fix — previously hardcoded to 0.01 which let all anchors pass
+            nwd_scores = nwd_scores * (nwd_scores >= nwd_min).float()
             overlaps[mask_gt] = nwd_scores
 
             align_metric = bbox_scores.pow(self.alpha) * overlaps.pow(self.beta)
             return align_metric, overlaps
 
         TaskAlignedAssigner.get_box_metrics = _patched_get_box_metrics
-        print(f"\u2713 SA-NWD-TAL patch applied (c_base={c_base}, k={k})")
+        print(f"\u2713 SA-NWD-TAL patch applied (c_base={c_base}, k={k}, nwd_min={nwd_min})")
     except Exception as e:
         print(f"\u26a0 SA-NWD-TAL patch failed: {e}")
 
@@ -329,27 +343,29 @@ def patch_nwd_nms(iou_threshold=0.7, nwd_threshold=0.8, c_base=12.0, k=2.0):
 # Convenience: apply all patches at once
 # ============================================================
 
-def patch_all_nwd(c_base=12.0, k=2.0, alpha=0.5, use_sa=True, use_nwd_nms=False,
-                  nms_iou_threshold=0.7, nms_nwd_threshold=0.8):
+def patch_all_nwd(c_base=12.0, k=1.0, alpha=0.5, use_sa=True, use_nwd_nms=False,
+                  nms_iou_threshold=0.7, nms_nwd_threshold=0.8, nwd_min=0.3):
     """Apply SA-NWD patches to ultralytics.
 
     Args:
-        c_base: Base normalization constant for NWD
-        k: Scale adaptation factor (0 = standard NWD, >0 = scale-adaptive)
-        alpha: Loss blending weight. 0.5 = hybrid SA-NWD+CIoU (recommended).
-               1.0 = pure SA-NWD. 0.0 = pure CIoU (no NWD in loss).
-        use_sa: If True, use SA-NWD; if False, use standard NWD (k is ignored)
-        use_nwd_nms: If True, also patch NMS with hybrid IoU+NWD
+        c_base:  Base normalization constant for NWD (default 12.0)
+        k:       Scale adaptation factor. 0 = standard NWD, 1.0 = SA-NWD (default).
+        alpha:   Loss blending weight. 0.5 = hybrid SA-NWD+CIoU (default).
+                 1.0 = pure SA-NWD. 0.0 = pure CIoU.
+        use_sa:  If True (default), use SA-NWD; if False, use standard NWD (k ignored)
+        use_nwd_nms: If True, also patch NMS with hybrid IoU+NWD (default False)
         nms_iou_threshold: IoU threshold for NMS
         nms_nwd_threshold: NWD threshold for additional NMS suppression
+        nwd_min: Minimum SA-NWD score for TAL positive anchors (default 0.3).
+                 Values below this are zeroed out. Prevents precision collapse.
     """
     if use_sa:
         patch_sa_nwd_loss(c_base=c_base, k=k, alpha=alpha)
-        patch_sa_nwd_tal(c_base=c_base, k=k)
+        patch_sa_nwd_tal(c_base=c_base, k=k, nwd_min=nwd_min)
     else:
         # Fall back to standard NWD (fixed constant)
         patch_sa_nwd_loss(c_base=c_base, k=0.0, alpha=alpha)
-        patch_sa_nwd_tal(c_base=c_base, k=0.0)
+        patch_sa_nwd_tal(c_base=c_base, k=0.0, nwd_min=nwd_min)
 
     if use_nwd_nms:
         patch_nwd_nms(iou_threshold=nms_iou_threshold,
@@ -383,20 +399,26 @@ def patch_nwd_tal(constant=12.0):
 # Scale-Aware Loss Weighting (Fisher-Guided)
 # ============================================================
 
-def patch_scale_aware_loss(ref_area=0.002, max_scale=2.0, min_scale=0.5):
-    """Patch BboxLoss with Scale-Aware CIoU loss.
+def patch_scale_aware_loss(ref_area=0.002, max_scale=1.3, min_scale=0.8):
+    """Patch BboxLoss with Fisher-Guided Scale-Aware CIoU loss.
 
     Directly derived from Fisher information analysis:
-      I_IoU(s) \u221d 1/s^2  =>  gradient signal vanishes for small objects
+      I_IoU(s) proportional to 1/s^2  =>  gradient signal vanishes for small objects
 
-    Optimal compensation: w(s) = sqrt(ref_area / s)
-    This equalizes the effective gradient magnitude across all object scales.
+    Compensation: w(s) = sqrt(ref_area / s)
+    Applied as a direct coefficient on the per-sample loss, NOT multiplied on top
+    of target_scores (which would cause double amplification).
+    No batch normalization (which was incorrectly cancelling the compensation).
+
+    For drone dataset (median area ~0.0023):
+      w(0.0023) = sqrt(0.002/0.0023) ≈ 0.93  (near-average object, slight reduction)
+      w(0.0005) = sqrt(0.002/0.0005) = 2.0 -> clamped to 1.3  (very small object)
+      w(0.010)  = sqrt(0.002/0.010)  ≈ 0.45 -> clamped to 0.8  (relatively large)
 
     Args:
-        ref_area: Reference (median) normalized object area. Default 0.002
-                  (~50x50 pixels in 1920x1080, normalized to [0,1]).
-        max_scale: Maximum weight multiplier (prevents extreme amplification).
-        min_scale: Minimum weight multiplier (prevents suppression of large objects).
+        ref_area: Reference normalized object area. Default 0.002.
+        max_scale: Upper clamp. 1.3 = max 30% amplification for tiny objects.
+        min_scale: Lower clamp. 0.8 = max 20% reduction for larger objects.
     """
     try:
         from ultralytics.utils.loss import BboxLoss
@@ -406,32 +428,34 @@ def patch_scale_aware_loss(ref_area=0.002, max_scale=2.0, min_scale=0.5):
         def _patched_forward(self, pred_dist, pred_bboxes, anchor_points,
                              target_bboxes, target_scores, target_scores_sum,
                              fg_mask, imgsz, stride):
-            """Scale-Aware CIoU loss with Fisher-compensation weighting."""
+            """Fisher-Guided Scale-Aware CIoU loss."""
+            # Standard target_scores weight — unchanged, no double amplification
             weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
 
-            # Compute scale-aware weight: w(s) = sqrt(ref_area / s)
             tb = target_bboxes[fg_mask]
             img_area = float(imgsz[0]) * float(imgsz[1]) + 1e-8
             gt_areas = ((tb[:, 2] - tb[:, 0]) * (tb[:, 3] - tb[:, 1])) / img_area
+
+            # Fisher compensation: w(s) = sqrt(ref_area / s), no batch-normalize
             scale_w = torch.sqrt(
                 torch.tensor(ref_area, dtype=tb.dtype, device=tb.device) /
                 gt_areas.clamp(min=1e-6)
-            ).clamp(min=min_scale, max=max_scale)
-            weight = weight * scale_w.unsqueeze(-1)
+            ).clamp(min=min_scale, max=max_scale).unsqueeze(-1)
 
-            # CIoU loss with scale-aware weight
+            # CIoU loss: scale_w applied directly on (1-ciou), independent of weight
             ciou = bbox_iou(pred_bboxes[fg_mask], tb, xywh=False, CIoU=True)
-            loss_iou = ((1.0 - ciou).unsqueeze(-1) * weight).sum() / target_scores_sum
+            loss_iou = ((1.0 - ciou).unsqueeze(-1) * weight * scale_w).sum() / target_scores_sum
 
-            # DFL loss (unchanged)
+            # DFL loss: same scale_w applied for consistency
             if self.dfl_loss:
                 target_ltrb = bbox2dist(anchor_points, target_bboxes,
                                         self.dfl_loss.reg_max - 1)
-                loss_dfl = self.dfl_loss(
-                    pred_dist[fg_mask].view(-1, self.dfl_loss.reg_max),
-                    target_ltrb[fg_mask]
-                ) * weight
-                loss_dfl = loss_dfl.sum() / target_scores_sum
+                loss_dfl = (
+                    self.dfl_loss(
+                        pred_dist[fg_mask].view(-1, self.dfl_loss.reg_max),
+                        target_ltrb[fg_mask]
+                    ) * weight * scale_w
+                ).sum() / target_scores_sum
             else:
                 target_ltrb = bbox2dist(anchor_points, target_bboxes)
                 target_ltrb = target_ltrb * stride
@@ -443,12 +467,99 @@ def patch_scale_aware_loss(ref_area=0.002, max_scale=2.0, min_scale=0.5):
                 import torch.nn.functional as F
                 loss_dfl = (
                     F.l1_loss(pred_dist_s[fg_mask], target_ltrb[fg_mask],
-                              reduction='none').mean(-1, keepdim=True) * weight
+                              reduction='none').mean(-1, keepdim=True) * weight * scale_w
                 ).sum() / target_scores_sum
 
             return loss_iou, loss_dfl
 
         BboxLoss.forward = _patched_forward
-        print(f"\u2713 Scale-Aware CIoU loss applied (ref_area={ref_area}, scale=[{min_scale},{max_scale}])")
+        print(f"\u2713 Fisher Scale-Aware CIoU applied (ref_area={ref_area}, scale=[{min_scale},{max_scale}])")
     except Exception as e:
         print(f"\u26a0 Scale-Aware loss patch failed: {e}")
+
+
+def patch_sa_nwd_fisher_loss(c_base=12.0, k=1.0, alpha=0.5,
+                              ref_area=0.002, max_scale=1.3, min_scale=0.8):
+    """Patch BboxLoss with SA-NWD + Fisher-Guided Scale-Aware CIoU (combined).
+
+    loss = alpha * SA-NWD  +  (1-alpha) * scale_aware_CIoU
+
+    SA-NWD:           smooth Wasserstein-based regression, scale-adaptive C
+    scale_aware_CIoU: standard CIoU amplified by w(s)=sqrt(ref_area/s)
+                      — Fisher compensation for vanishing gradients on small objects
+
+    This is the full combined contribution: two complementary improvements.
+    scale_w has NO batch normalization and does NOT double-amplify target_scores.
+
+    Args:
+        c_base:     SA-NWD base constant (default 12.0)
+        k:          SA-NWD scale factor (default 1.0)
+        alpha:      SA-NWD blend weight (default 0.5)
+        ref_area:   Fisher reference area (default 0.002)
+        max_scale:  Fisher upper clamp (default 1.3)
+        min_scale:  Fisher lower clamp (default 0.8)
+    """
+    try:
+        from ultralytics.utils.loss import BboxLoss
+        from ultralytics.utils.tal import bbox2dist
+        from ultralytics.utils.metrics import bbox_iou
+
+        def _patched_forward(self, pred_dist, pred_bboxes, anchor_points,
+                             target_bboxes, target_scores, target_scores_sum,
+                             fg_mask, imgsz, stride):
+            """SA-NWD + Fisher Scale-Aware CIoU combined loss."""
+            weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
+            pred_fg = pred_bboxes[fg_mask]
+            tb = target_bboxes[fg_mask]
+
+            # Fisher scale weight: w(s) = sqrt(ref_area / s)
+            img_area = float(imgsz[0]) * float(imgsz[1]) + 1e-8
+            gt_areas = ((tb[:, 2] - tb[:, 0]) * (tb[:, 3] - tb[:, 1])) / img_area
+            scale_w = torch.sqrt(
+                torch.tensor(ref_area, dtype=tb.dtype, device=tb.device) /
+                gt_areas.clamp(min=1e-6)
+            ).clamp(min=min_scale, max=max_scale).unsqueeze(-1)
+
+            # Component 1: SA-NWD loss (scale-adaptive Wasserstein)
+            sa_score = sa_nwd(pred_fg, tb, c_base=c_base, k=k)
+            loss_sa = ((1.0 - sa_score).unsqueeze(-1) * weight).sum() / target_scores_sum
+
+            # Component 2: Fisher-compensated CIoU loss
+            ciou = bbox_iou(pred_fg, tb, xywh=False, CIoU=True)
+            loss_ciou = ((1.0 - ciou).unsqueeze(-1) * weight * scale_w).sum() / target_scores_sum
+
+            # Combined: alpha * SA-NWD + (1-alpha) * Fisher-CIoU
+            loss_iou = alpha * loss_sa + (1.0 - alpha) * loss_ciou
+
+            # DFL loss: Fisher scale_w applied
+            if self.dfl_loss:
+                target_ltrb = bbox2dist(anchor_points, target_bboxes,
+                                        self.dfl_loss.reg_max - 1)
+                loss_dfl = (
+                    self.dfl_loss(
+                        pred_dist[fg_mask].view(-1, self.dfl_loss.reg_max),
+                        target_ltrb[fg_mask]
+                    ) * weight * scale_w
+                ).sum() / target_scores_sum
+            else:
+                target_ltrb = bbox2dist(anchor_points, target_bboxes)
+                target_ltrb = target_ltrb * stride
+                target_ltrb[..., 0::2] /= imgsz[1]
+                target_ltrb[..., 1::2] /= imgsz[0]
+                pred_dist_s = pred_dist * stride
+                pred_dist_s[..., 0::2] /= imgsz[1]
+                pred_dist_s[..., 1::2] /= imgsz[0]
+                import torch.nn.functional as F
+                loss_dfl = (
+                    F.l1_loss(pred_dist_s[fg_mask], target_ltrb[fg_mask],
+                              reduction='none').mean(-1, keepdim=True) * weight * scale_w
+                ).sum() / target_scores_sum
+
+            return loss_iou, loss_dfl
+
+        BboxLoss.forward = _patched_forward
+        print(f"\u2713 SA-NWD + Fisher CIoU loss applied "
+              f"(c_base={c_base}, k={k}, alpha={alpha}, "
+              f"ref_area={ref_area}, scale=[{min_scale},{max_scale}])")
+    except Exception as e:
+        print(f"\u26a0 SA-NWD+Fisher loss patch failed: {e}")

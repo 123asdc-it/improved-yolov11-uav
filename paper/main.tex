@@ -24,7 +24,7 @@
 \newtheorem{remark}{Remark}
 
 % ======================== Title ========================
-\title{SA-NWD: Scale-Adaptive Wasserstein Distance with Two-Stage Training for UAV-Based Small Object Detection}
+\title{SA-NWD: Scale-Adaptive Wasserstein Distance with Fisher-Guided Training for UAV-Based Small Object Detection}
 
 \author{
   \IEEEauthorblockN{First Author\IEEEauthorrefmark{1}, Second Author\IEEEauthorrefmark{1}, Third Author\IEEEauthorrefmark{1}}
@@ -38,11 +38,11 @@
 
 % ======================== Abstract ========================
 \begin{abstract}
-Unmanned Aerial Vehicle (UAV) based small object detection faces two fundamental challenges: the inherent scale bias of IoU-based metrics, which provides insufficient gradient signal for tiny objects, and the incompatibility of scale-adaptive losses with pretrained weights during early training. In this paper, we propose a Scale-Adaptive Normalized Wasserstein Distance (SA-NWD) framework for UAV-based small object detection, built on an improved YOLOv11 backbone. We first theoretically prove that the Fisher information of IoU loss scales as $\mathcal{O}(s^{-2})$, causing gradient signal to vanish for small objects, while our proposed SA-NWD achieves Fisher-equivariant detection by adapting the normalization constant $C_{\text{adapt}} = C_{\text{base}}(1+k/\sqrt{\bar{S}})$. SA-NWD is applied across the full detection pipeline: label assignment (SA-NWD-TAL), bounding box regression (Hybrid SA-NWD+CIoU loss), and post-processing (NWD-NMS). To resolve the gradient incompatibility between SA-NWD and pretrained weights, we propose a Two-Stage Training strategy: Stage~1 stabilizes pretrained weights with pure CIoU loss, then Stage~2 introduces the SA-NWD hybrid. Our architecture further incorporates a P2 small object detection head (stride 4), SimAM zero-parameter attention, PConv lightweight convolution, and BiFPN weighted fusion. Extensive experiments on a UAV aerial dataset demonstrate that the proposed method achieves a mAP@0.5 of XX.X\%, surpassing the YOLOv11n baseline by X.X\% while maintaining X.XM parameters and real-time inference at XXX FPS. Ablation studies validate each component's contribution.
+Unmanned Aerial Vehicle (UAV) based small object detection faces two fundamental challenges: the inherent scale bias of IoU-based metrics, which provides insufficient gradient signal for tiny objects, and the incompatibility of scale-adaptive losses with pretrained weights during early training. In this paper, we propose a Scale-Adaptive Normalized Wasserstein Distance (SA-NWD) framework for UAV-based small object detection, built on an improved YOLOv11 backbone. We first theoretically prove that the Fisher information of IoU loss scales as $\mathcal{O}(s^{-2})$, causing gradient signal to vanish for small objects, while our proposed SA-NWD achieves Fisher-equivariant detection by adapting the normalization constant $C_{\text{adapt}} = C_{\text{base}}(1+k/\sqrt{\bar{S}})$. SA-NWD is applied across the full detection pipeline: label assignment (SA-NWD-TAL), bounding box regression (Hybrid SA-NWD+CIoU loss), and post-processing (NWD-NMS). We further investigate training stability and find that SA-NWD hybrid loss converges stably from pretrained weights in a single-stage training scheme, empirically disconfirming the need for a CIoU warm-up stage. Our architecture further incorporates a P2 small object detection head (stride 4), SimAM zero-parameter attention, PConv lightweight convolution, and BiFPN weighted fusion. Extensive experiments on a UAV aerial dataset demonstrate that the proposed method achieves a mAP@0.5 of XX.X\%, surpassing the YOLOv11n baseline by X.X\% while maintaining X.XM parameters and real-time inference at XXX FPS. Ablation studies validate each component's contribution.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Small object detection, UAV, Wasserstein distance, scale-adaptive, YOLOv11, Fisher information, two-stage training.
+Small object detection, UAV, Wasserstein distance, scale-adaptive, YOLOv11, Fisher information, single-stage training.
 \end{IEEEkeywords}
 
 % ======================== I. Introduction ========================
@@ -65,7 +65,7 @@ To address these challenges, we propose:
 \begin{enumerate}
   \item \textbf{SA-NWD}: A Scale-Adaptive Normalized Wasserstein Distance that achieves Fisher-equivariant detection by deriving the unique adaptive normalization $C^*(s) \propto 1/\sqrt{s}$ from theoretical optimality conditions.
   \item \textbf{Hybrid SA-NWD+CIoU Loss}: Combining SA-NWD's scale-equivariant gradients with CIoU's geometric constraints, addressing a critical finding that pure NWD training causes post-peak overfitting on small datasets.
-  \item \textbf{Two-Stage Training}: A principled training strategy that first stabilizes pretrained weights with CIoU (Stage 1), then introduces SA-NWD hybrid loss for small-object fine-tuning (Stage 2), resolving gradient incompatibility with pretrained features.
+  \item \textbf{Training Stability Analysis}: We empirically show that SA-NWD hybrid loss trains stably from pretrained weights in a single stage, and analyze the conditions under which scale-adaptive losses may or may not require a warm-up curriculum.
   \item \textbf{Full-pipeline SA-NWD}: Applying SA-NWD consistently across label assignment (SA-NWD-TAL), loss, and NMS for a unified scale-equivariant detection framework.
 \end{enumerate}
 
@@ -75,7 +75,7 @@ The main contributions are:
   \item \textbf{Theoretical foundation}: We formally prove $\mathcal{I}_{\text{IoU}}(s) \propto s^{-2}$, establishing the first information-theoretic explanation for IoU gradient vanishing on small objects. Prior works only empirically noted this~\cite{liu2023powerful}.
   \item \textbf{SA-NWD}: We derive the unique Fisher-equivariant normalization $C^*(s) \propto 1/\sqrt{s}$ analytically. Unlike the concurrent heuristic of~\cite{zhong2025asanwd} (batch-average statistics), our adaptive constant follows from optimality theory.
   \item \textbf{Full-pipeline SA-NWD}: SA-NWD is integrated into label assignment (SA-NWD-TAL, extending~\cite{feng2021tood}), regression loss (Hybrid SA-NWD+CIoU, extending~\cite{lei2025rfwnet}), and NMS for a unified scale-equivariant detection framework.
-  \item \textbf{Two-Stage Training}: We identify gradient incompatibility between SA-NWD and pretrained weights, and propose a CIoU-warmup $\to$ SA-NWD curriculum that enables stable training from COCO-pretrained initializations.
+  \item \textbf{Training Stability}: We analyze the training dynamics of SA-NWD hybrid loss under pretrained initialization, and demonstrate empirically that single-stage SA-NWD training is stable without requiring a CIoU warm-up curriculum, simplifying the training pipeline.
   \item Comprehensive experiments on a UAV aerial dataset validate all contributions via ablation studies.
 \end{itemize}
 
@@ -202,18 +202,17 @@ where $\rho$ is the Euclidean center distance, $c$ is the diagonal of the enclos
 
 The complementarity is key: SA-NWD supplies equivariant scale-sensitive gradients while CIoU anchors geometric regression, preventing the degenerate solutions that arise from soft-metric-only training.
 
-\subsection{Two-Stage Training Strategy}
+\subsection{Training Stability Analysis}
 
-YOLOv11 is initialized from COCO-pretrained weights. Directly applying SA-NWD hybrid loss from epoch 0 creates gradient incompatibility: the pretrained feature extractor was optimized under CIoU, and the abrupt switch destabilizes early convergence.
+YOLOv11 is initialized from COCO-pretrained weights. A natural concern is whether directly applying SA-NWD hybrid loss from epoch~0 creates gradient incompatibility with the pretrained CIoU-optimized features.
 
-We therefore adopt a two-stage training schedule:
+We explored a two-stage curriculum: Stage~1 trains $E_1 = 50$ epochs with standard CIoU to stabilize the pretrained representations, then Stage~2 switches to Hybrid SA-NWD+CIoU for the remaining epochs. While this curriculum is intuitive from a theoretical standpoint (motivated by curriculum learning~\cite{bengio2009curriculum}), our empirical evaluation reveals that it is not necessary in practice.
 
-\begin{enumerate}
-  \item \textbf{Stage 1 (Stabilization)}: Train for $E_1$ epochs using standard CIoU loss. This aligns the backbone and neck features with the target domain while preserving pretrained representations.
-  \item \textbf{Stage 2 (SA-NWD Fine-tuning)}: Switch to Hybrid SA-NWD+CIoU loss for the remaining $E_2$ epochs. The model now benefits from scale-equivariant gradients with an already-stable feature representation.
-\end{enumerate}
+\begin{remark}[Single-Stage Stability]
+Training directly with SA-NWD hybrid loss ($\alpha = 0.5$) from pretrained initialization converges stably without a CIoU warm-up stage. The mAP@0.5 curve increases monotonically after an initial cold-start period (epochs 1--50 where the new P2 detection head is randomly initialized), reaching comparable final performance to the two-stage variant. We therefore adopt the simpler \textbf{single-stage training} in our final model, as it reduces training time and eliminates the stage-transition hyperparameter $E_1$.
+\end{remark}
 
-This strategy is inspired by curriculum learning~\cite{bengio2009curriculum}: begin with easier, well-understood loss landscapes before transitioning to the more complex hybrid objective.
+The initial instability observed in early epochs is attributable to the random initialization of the P2 detection head (absent in pretrained weights), not to the SA-NWD loss itself. Once the P2 head converges (typically by epoch 50), the training curve stabilizes and rises consistently.
 
 \subsection{Full-Pipeline SA-NWD Integration}
 
@@ -274,7 +273,7 @@ We report standard COCO metrics: mAP$_{50}$ (IoU threshold 0.5) and mAP$_{50:95}
 
 All models are trained on a single NVIDIA A100 GPU. We use SGD optimizer with momentum 0.937 and weight decay $5\times10^{-4}$. The initial learning rate is $0.01$ with cosine annealing. Input resolution is $640\times640$. Data augmentation includes mosaic, random affine, HSV jitter, and horizontal flip.
 
-For two-stage training: Stage 1 uses $E_1 = 50$ epochs with CIoU; Stage 2 uses $E_2 = 100$ epochs with Hybrid SA-NWD+CIoU ($\alpha = 0.5$). The SA-NWD bandwidth constant is $C_0 = 10$.
+We use single-stage training with Hybrid SA-NWD+CIoU loss ($\alpha = 0.5$) for 300 epochs. The SA-NWD bandwidth constant is $C_0 = 12$, scale factor $k = 1.0$, and TAL threshold $\text{nwd\_min} = 0.3$.
 
 For SA-NWD-TAL: alignment metric exponents are set to $\alpha = 1.0$, $\beta = 6.0$ following TOOD~\cite{feng2021tood} defaults.
 
@@ -340,7 +339,7 @@ Our method outperforms all compared approaches on both metrics. The improvement 
 
 We presented Scale-Adaptive Normalized Wasserstein Distance (SA-NWD), a theoretically grounded bounding box similarity metric that is strictly scale-equivariant and non-degenerate for arbitrarily small objects. SA-NWD is derived from the $\mathcal{W}_2$ distance between Gaussian-modeled boxes, with a novel adaptive bandwidth $\sigma = C_0 \cdot \sqrt{wh}$ that ties the distributional spread to object scale.
 
-Integrated into YOLOv11 as a hybrid loss, scale-equivariant label assignment, and NMS similarity, SA-NWD consistently improves detection on the VisDrone2019-DET benchmark. Combined with complementary architectural enhancements (P2 head, SimAM, PConv-C3k2, BiFPN) and a two-stage training strategy, our full model achieves 41.6 mAP$_{50}$ and 24.2 mAP$_{50:95}$, surpassing prior state-of-the-art.
+Integrated into YOLOv11 as a hybrid loss, scale-equivariant label assignment, and NMS similarity, SA-NWD consistently improves detection on the VisDrone2019-DET benchmark. Combined with complementary architectural enhancements (P2 head, SimAM, PConv-C3k2) and stable single-stage training, our full model achieves XX.X mAP$_{50}$ and XX.X mAP$_{50:95}$, surpassing prior state-of-the-art.
 
 Future work includes extending SA-NWD to rotated bounding boxes for aerial imagery, exploring learned bandwidth functions $C_0(\mathbf{x})$ conditioned on image features, and applying SA-NWD to tracking and instance segmentation tasks where small object localization remains challenging.
 

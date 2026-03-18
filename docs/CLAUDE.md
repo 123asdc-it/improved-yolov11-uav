@@ -5,148 +5,124 @@
 团队实习任务：基于 YOLOv11n 的无人机极小目标检测改进算法，含论文撰写。
 - 阶段1（3.14-3.21）：复现 YOLOv11n 基线 ✅
 - 阶段2（3.21-4.21）：改进算法 + IEEE 论文
+- 目标期刊：IEEE TGRS（3区）
 
 ## 数据集
 
 - 位置：`datasets/`（ultralytics 格式，单类别 `drone`）
 - 划分：train 391 / val 111 / test 57，分辨率 1920×1080
 - 核心特征：**极小目标**，归一化面积中位数 0.0023（~50×50 像素）
+- 已知问题：train/test 有相邻帧交叉污染（视频抽帧），所有方法同等受影响
 
-## 当前方案（SimAM + NWD）
+## 最终方案（实习版）
 
-### 核心理念
-传统改进（加注意力、换卷积）= 增加参数 → 391 张小数据集容易过拟合。
-本方案：**改度量（NWD）+ 零参数注意力（SimAM）+ 结构优化**，专门解决"小目标 + 小数据集"问题。
+### 核心改进
 
-### 改进模型（论文主体）
-`configs/yolo11n-improved.yaml` + NWD patch
-- **NWD 损失 + NWD-TAL**（ISPRS 2022）：Wasserstein 距离替代 IoU，小目标度量更稳定
-- **P2 小目标检测头**（stride=4，4-head Detect）
-- **SimAM 零参数注意力**（ICML 2021）：backbone P3/P4，不增加任何参数
-- **PConv_C3k2 轻量化 neck**
-- **BiFPN 加权特征融合**
+| 组件 | 模块 | 效果 |
+|------|------|------|
+| SA-NWD Loss（hybrid alpha=0.5） | `patch_sa_nwd_loss` | +1.05% mAP50 |
+| P2 小目标检测头（stride=4） | yaml 架构 | +0.76% mAP50 |
 
-### SOTA 模型（追求极致指标）
-`configs/yolo11n-sota.yaml` + NWD patch
-- RepVGG backbone（训练多分支，推理单分支）
-- SimAM 注意力（替代旧方案的 CA）
-- CARAFE 内容感知上采样（P2 分支专用）
-- PConv_C3k2 + BiFPN（同改进模型）
+**最佳配置：NWD + P2 → mAP50 = 0.9781**
+
+### 已验证为负贡献（已归档）
+
+| 组件 | mAP50 | 变化 |
+|------|:-----:|------|
+| +SimAM | 0.9519 | -2.62% |
+| +SimAM+PConv | 0.9749 | PConv 补回部分 |
+| +BiFPN | 0.9365 | -3.84% |
+| Fisher-CIoU 系列 | 0.827~0.937 | 全部低于基线 |
+| SA-NWD-TAL 微调 | 震荡崩溃 | 训练不稳定 |
+
+## 消融实验结果（runs/ablation/，统一 seed=0，300ep）
+
+| 步骤 | 配置 | mAP50 | P | R |
+|------|------|:-----:|:---:|:---:|
+| Baseline | YOLOv11n | 0.9600 | 0.967 | 0.869 |
+| +NWD | 仅换 loss+TAL | 0.9705 | 0.985 | 0.925 |
+| **+NWD+P2** | **加 P2 检测头** | **0.9781** | 0.968 | 0.935 |
+| +NWD+P2+SimAM | 加 SimAM | 0.9519 | 0.961 | 0.915 |
+| +NWD+P2+SimAM+PConv | 加 PConv | 0.9749 | 0.956 | 0.935 |
+| Full (+BiFPN) | 加 BiFPN | 0.9365 | 0.949 | 0.872 |
 
 ## 文件结构
 
 ```
 无人机/
 ├── configs/
-│   ├── data.yaml                     # 数据集配置
-│   ├── data_sliced.yaml              # 切片数据集配置（由 slice_dataset.py 生成）
-│   ├── yolo11n-improved.yaml         # 改进模型（NWD+P2+SimAM+PConv+BiFPN）
-│   ├── yolo11n-sota.yaml             # SOTA 模型（+RepVGG+CARAFE）
-│   └── ablation/                     # 消融 YAML（自动生成）
+│   ├── data.yaml                      # 数据集配置（单类 drone）
+│   └── yolo11n-improved.yaml          # 改进模型架构（P2+SimAM+PConv）
 ├── ultralytics_modules/
-│   ├── simam.py                      # SimAM 零参数注意力 [主用]
-│   ├── nwd.py                        # NWD 损失 + NWD-TAL patch [主用]
-│   ├── pconv.py                      # PConv + PConv_C3k2
-│   ├── bifpn.py                      # BiFPN_Concat
-│   ├── repvgg.py                     # RepVGGBlock（已修复 1x1 分支）
-│   ├── carafe.py                     # CARAFE
-│   ├── attention.py                  # EMA + CA [旧方案，保留参考]
-│   └── inner_iou.py                  # Inner-IoU [旧方案，保留参考]
+│   ├── __init__.py                    # 模块导出（仅活跃模块）
+│   ├── nwd.py                         # SA-NWD 全套 patch [核心]
+│   ├── simam.py                       # SimAM 零参数注意力
+│   └── pconv.py                       # PConv + PConv_C3k2
 ├── scripts/
-│   ├── register_modules.py           # 模块注册 + parse_model patch
-│   ├── train_baseline.py             # 基线训练
-│   ├── train_improved.py             # 改进模型训练（自动应用 NWD patch）
-│   ├── train_sota.py                 # SOTA 训练（自动应用 NWD patch）
-│   ├── ablation.py                   # 消融实验（6 组，subprocess 独立进程）
-│   ├── eval.py                       # 统一评估（FPS/Params/ModelSize）
-│   ├── slice_dataset.py              # SAHI 训练切片（391图→~2500切片）
-│   └── augment_copy_paste.py         # 小目标 Copy-Paste 增强
+│   ├── register_modules.py            # 自定义模块注册（必须最先 import）
+│   ├── train_baseline.py              # 基线训练
+│   ├── ablation.py                    # 消融实验（6组，子进程隔离）
+│   ├── eval.py                        # 统一评估（精度+效率全指标）
+│   ├── collect_results.py             # 汇总结果 → JSON + LaTeX
+│   ├── plot_results.py                # 论文图表
+│   ├── plot_training_curves.py        # 训练曲线可视化
+│   ├── gradcam.py                     # Grad-CAM 热力图
+│   └── verify_error_distribution.py   # 验证 σ(s) ∝ √s（有 bug 待修）
 ├── paper/
-│   ├── main.tex                      # IEEE Journal 论文（待更新为新方案）
-│   └── refs.bib                      # BibTeX 参考文献
-└── docs/
-    ├── CLAUDE.md                     # 本文件
-    └── 操作指南.md                    # 操作手册（待更新为新方案）
+│   ├── main.tex                       # IEEE 论文（占位符待填）
+│   ├── refs.bib                       # 参考文献（3 条假引用待替换）
+│   └── figs/                          # 待生成图表
+├── docs/
+│   ├── CLAUDE.md                      # 本文件
+│   ├── 操作指南.md                     # 操作手册
+│   ├── 01_审稿回复模板.md
+│   ├── 02_修稿与补实验计划.md
+│   ├── 03_论文贡献表述模板.md
+│   ├── 04_投稿改进计划.md
+│   └── 04_按章节改稿提纲.md
+└── archive/                           # 已归档（失败/未使用的实验代码）
+    ├── scripts/                       # 15 个脚本
+    ├── modules/                       # bifpn, repvgg, carafe, legacy/
+    └── yolo11n-sota.yaml              # SOTA 配置
 ```
 
-## 关键技术细节
+## nwd.py 函数速查
 
-### 模块注册机制
-- `register_modules.py` 通过 monkey-patch `tasks.parse_model` 注入自定义模块
-- 各脚本头部已自动 `import register_modules`
-- SimAM/EMA/CA：pass-through，`c2 = ch[f]`，args 传 `[c2]`
-- RepVGGBlock：args 传 `[c1, c2, 3, stride]`
-- CARAFE：args 前置 channels，即 `[c2, scale_factor]`
+| 函数 | 用途 | 关键参数 |
+|------|------|---------|
+| `sa_nwd(box1, box2)` | 计算 SA-NWD 相似度 [0,1] | `c_base=12.0, k=1.0` |
+| `patch_sa_nwd_loss()` | 替换 BboxLoss：`α·SA-NWD + (1-α)·CIoU` | `alpha=0.5` |
+| `patch_sa_nwd_tal()` | 替换 TAL：SA-NWD 替代 IoU | `nwd_min=0.3` |
+| `patch_all_nwd()` | 便捷调用：loss + TAL | `k=1.0, alpha=0.5, nwd_min=0.3` |
 
-### NWD 机制
-- `nwd.py` 提供 `patch_all_nwd()` 函数，在 `model.train()` 前调用
-- 同时 patch BboxLoss.forward（NWD 替代 CIoU）和 TaskAlignedAssigner.get_box_metrics（NWD 替代 IoU）
-- 常数 C=12.0 控制灵敏度，小目标建议 8.0-12.0
+## 恒源云环境
 
-### 消融实验设计（6 组）
-```
-0. Baseline          — YOLOv11n 原版，无 NWD
-1. +NWD              — 仅换损失和标签分配（无结构改变）
-2. +NWD+P2           — 加 P2 小目标检测头
-3. +NWD+P2+SimAM     — 加零参数注意力
-4. +NWD+P2+SimAM+PConv — 轻量化 neck
-5. Full (Ours)       — + BiFPN 加权融合
-```
-训练参数：patience=100, warmup_epochs=5, mixup=0.15, copy_paste=0.2
-
-### 恒源云环境
 - RTX 3060 12GB，PyTorch 2.4.0+cu121，Python 3.11，ultralytics 8.4.22
 - SSH：`ssh -p 21635 root@i-1.gpushare.com`
 - 项目路径：`/root/drone_detection/`
+- 单个训练 batch=8 需 ~8.1GB，不能并行两个训练
+- 路径嵌套：`project='runs/detect'` 生成 `runs/detect/runs/detect/exp_name/`
 
-## 已完成修复
+### 服务器实验目录
 
-- [x] `repvgg.py:41` 1x1 分支条件修复
-- [x] `inner_iou.py` 参数签名修复（服务器已部署）
-- [x] EMA → SimAM 替换（所有配置和脚本）
-- [x] Inner-IoU → NWD 替换（损失 + 标签分配）
-- [x] 消融实验重写（5 组 → 6 组，含 NWD 独立实验）
-- [x] 消融训练参数调优（patience=100, warmup=5, 增强数据增强）
-- [x] Git 仓库初始化 + GitHub 推送
-- [x] session 文件从 git 移除（含密码）
+- 消融实验：`/root/drone_detection/runs/ablation/{baseline,nwd_only,nwd_p2,...}/`
+- 独立实验：`/root/drone_detection/runs/detect/runs/detect/{clean,fisher_only,...}/`
 
-## 旧方案（EMA + Inner-IoU）— 归档
+## 训练参数（标准配置）
 
-旧方案的代码保留在 `attention.py` 和 `inner_iou.py` 中供参考。
-旧消融结果（仅供对比，非论文数据）：
-| 实验 | mAP50 | 早停 epoch |
-|------|:-----:|:----------:|
-| Baseline | 0.9617 | 123 |
-| +P2 | 0.9515 | 176 |
-| +P2+EMA | 0.9328 | 43 |
-| +P2+EMA+PConv | 0.9360 | 181 |
-**问题**：EMA 导致 epoch 43 就早停，消融趋势下降。决定全面切换到 SimAM + NWD。
-
-## 服务器已知问题
-
-### 路径嵌套
-`project='runs/detect'` 生成 `runs/detect/runs/detect/exp_name/`（双层嵌套）。
-收集权重时用实际路径：`runs/detect/runs/detect/exp_name/weights/best.pt`
-
-### 串行训练（OOM 约束）
-改进模型 batch=8 需要 8.1GB，SOTA batch=2 需要 3.1GB，总计超过 12GB 不能同时跑。
-执行顺序：SOTA Stage2 → Improved Two-Stage（串行）。
-Watcher 模式：`nohup bash -c 'while kill -0 PID 2>/dev/null; do sleep 60; done; python next.py >> log.txt 2>&1' &`
-
-## 当前进行中（服务器）
-
-| 实验 | 状态 | 日志 |
-|------|------|------|
-| SOTA Stage2（hybrid SA-NWD+NMS, 250ep） | 运行中（~epoch 4/250），mAP50 epoch1=0.699 | `sota_s2_log.txt` |
-| Improved Two-Stage（Stage1 CIoU 50ep + Stage2 hybrid） | 等待 SOTA 完成（watcher on PID 70731） | `improved_ts_log.txt` |
+```python
+# 消融实验（从 yolo11n.pt）
+lr0=0.01, epochs=300, patience=100, warmup_epochs=5, batch=8,
+imgsz=1280, cos_lr=True, mosaic=1.0, mixup=0.15, copy_paste=0.2
+```
 
 ## 待完成
 
-- [ ] SOTA Stage2 完成 → 收集结果
-- [ ] Improved Two-Stage 完成 → 收集结果
-- [ ] eval.py 统一评估（mAP50/75/50-95, P, R, F1, Params, FLOPs, FPS, Size）
-- [ ] verify_error_distribution.py 验证理论假设（sigma ∝ 1/sqrt(s)）
-- [ ] 可视化（Grad-CAM、训练曲线、消融柱状图、检测结果对比）
-- [ ] VisDrone 数据集下载 + 转换 + 实验
-- [ ] 更新 paper/main.tex（方法章节：SA-NWD + 两阶段训练 + 理论推导）
-- [ ] ONNX 导出 + 推理速度
+- [ ] 修复 verify_error_distribution.py（line 267: `cfg.get(path, ...)` → `cfg.get('path', ...)`）
+- [ ] 统一 eval 所有关键 best.pt
+- [ ] TTA 评估（零成本试 nwd_p2 best.pt）
+- [ ] 生成论文图表 → paper/figs/
+- [ ] 论文填数（替换 XX.X 占位符）
+- [ ] 替换 3 条假引用
+- [ ] 删除论文中 BiFPN/SimAM 正面描述
+- [ ] ONNX 导出 + FPS 测试

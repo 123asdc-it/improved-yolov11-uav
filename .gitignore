@@ -39,3 +39,9 @@ datasets_augmented/
 # Logs
 *.log
 nohup.out
+
+# Temporary eval outputs
+baseline_640_eval.json
+
+# Misc docs (not project code)
+远程GPU操作手册.md

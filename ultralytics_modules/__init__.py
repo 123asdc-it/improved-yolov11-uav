@@ -1,27 +1,16 @@
-# Active modules only — legacy modules moved to ultralytics_modules/legacy/
+# Active modules — archived modules in archive/modules/
 from .simam import SimAM
 from .pconv import PConv, PConv_C3k2
-from .bifpn import BiFPN_Concat
-from .repvgg import RepVGGBlock, repvgg_model_convert
-from .carafe import CARAFE
 from .nwd import (
     nwd, sa_nwd, nwd_loss, sa_nwd_loss, nwd_nms,
     patch_sa_nwd_loss, patch_sa_nwd_tal, patch_nwd_nms,
     patch_nwd_loss, patch_nwd_tal, patch_all_nwd,
 )
 
-# Legacy modules (EMA, CA, inner_iou) are in ultralytics_modules/legacy/
-# Load them directly if needed: from ultralytics_modules.legacy.attention import EMA, CA
-
 __all__ = [
-    # Active modules (SimAM + SA-NWD)
     "SimAM",
+    "PConv", "PConv_C3k2",
     "sa_nwd", "sa_nwd_loss", "nwd_nms",
     "patch_sa_nwd_loss", "patch_sa_nwd_tal", "patch_nwd_nms",
     "nwd", "nwd_loss", "patch_nwd_loss", "patch_nwd_tal", "patch_all_nwd",
-    # Structural modules
-    "PConv", "PConv_C3k2",
-    "BiFPN_Concat",
-    "RepVGGBlock", "repvgg_model_convert",
-    "CARAFE",
 ]

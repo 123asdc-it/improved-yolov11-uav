@@ -2,18 +2,16 @@
 Register custom modules with ultralytics.
 Import this module BEFORE creating any YOLO model to enable custom layers.
 
-Modules registered:
-  - SimAM:       Parameter-Free Attention (ICML 2021) [primary]
+Active modules:
+  - SimAM:       Parameter-Free Attention (ICML 2021)
   - PConv:       Partial Convolution (FasterNet, CVPR 2023)
   - PConv_C3k2:  Lightweight C3k2 with PConv
-  - BiFPN_Concat: Weighted feature fusion (EfficientDet, CVPR 2020)
-  - RepVGGBlock: Structural re-parameterization (CVPR 2021)
-  - CARAFE:      Content-Aware ReAssembly upsampling (ICCV 2019)
-  - EMA:         Efficient Multi-Scale Attention (ICASSP 2023) [legacy]
-  - CA:          Coordinate Attention (CVPR 2021) [legacy]
 
 Loss patch (see ultralytics_modules/nwd.py):
   - patch_all_nwd(): Replace CIoU with NWD loss + NWD-TAL label assignment
+
+Archived modules (in archive/modules/):
+  - BiFPN_Concat, RepVGGBlock, CARAFE, EMA, CA
 """
 
 import sys
@@ -22,19 +20,13 @@ import os
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 
-from ultralytics_modules import (
-    SimAM, PConv, PConv_C3k2, BiFPN_Concat,
-    RepVGGBlock, CARAFE
-)
+from ultralytics_modules import SimAM, PConv, PConv_C3k2
 import ultralytics.nn.tasks as tasks
 
-# Register all custom modules into tasks namespace
+# Register active custom modules into tasks namespace
 for name, cls in [
     ("SimAM", SimAM),
     ("PConv", PConv), ("PConv_C3k2", PConv_C3k2),
-    ("BiFPN_Concat", BiFPN_Concat),
-    ("RepVGGBlock", RepVGGBlock),
-    ("CARAFE", CARAFE),
 ]:
     setattr(tasks, name, cls)
 
@@ -43,7 +35,10 @@ _original_parse_model = tasks.parse_model
 
 
 def _patched_parse_model(d, ch, verbose=True):
-    """Patched parse_model supporting CA, EMA, PConv_C3k2, BiFPN_Concat, RepVGGBlock, CARAFE."""
+    """Patched parse_model supporting SimAM, PConv_C3k2."""
+    # Archived modules (BiFPN_Concat, RepVGGBlock, CARAFE) are resolved
+    # via getattr(tasks, m) at line ~105; they won't be found unless
+    # explicitly registered, which is fine — archived YAMLs are not used.
     import ast
     import contextlib
     import torch
@@ -183,4 +178,4 @@ def _patched_parse_model(d, ch, verbose=True):
 
 
 tasks.parse_model = _patched_parse_model
-print("\u2713 Custom modules registered: SimAM, PConv, PConv_C3k2, BiFPN_Concat, RepVGGBlock, CARAFE")
+print("\u2713 Custom modules registered: SimAM, PConv, PConv_C3k2")
