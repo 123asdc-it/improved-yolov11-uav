@@ -397,6 +397,8 @@ def patch_nwd_tal(constant=12.0):
 
 # ============================================================
 # Scale-Aware Loss Weighting (Fisher-Guided)
+# DEPRECATED: 所有实验结果（mAP50 0.827~0.937）低于基线（0.960），已归档。
+# 调用此函数的脚本已移至 archive/scripts/。保留仅供参考，请勿在新实验中使用。
 # ============================================================
 
 def patch_scale_aware_loss(ref_area=0.002, max_scale=1.3, min_scale=0.8):
@@ -478,6 +480,8 @@ def patch_scale_aware_loss(ref_area=0.002, max_scale=1.3, min_scale=0.8):
         print(f"\u26a0 Scale-Aware loss patch failed: {e}")
 
 
+# DEPRECATED: SA-NWD + Fisher-CIoU 组合实验证实两者正则化方向相反，组合效果更差。
+# 保留仅供参考，请勿在新实验中使用。
 def patch_sa_nwd_fisher_loss(c_base=12.0, k=1.0, alpha=0.5,
                               ref_area=0.002, max_scale=1.3, min_scale=0.8):
     """Patch BboxLoss with SA-NWD + Fisher-Guided Scale-Aware CIoU (combined).
@@ -563,3 +567,133 @@ def patch_sa_nwd_fisher_loss(c_base=12.0, k=1.0, alpha=0.5,
               f"ref_area={ref_area}, scale=[{min_scale},{max_scale}])")
     except Exception as e:
         print(f"\u26a0 SA-NWD+Fisher loss patch failed: {e}")
+
+
+# ============================================================
+# Experiment E: Reverse SA-NWD (C proportional to sqrt(S))
+# ============================================================
+# Motivation: Fisher analysis suggests C proportional to s (large objects get larger C,
+# giving small objects stronger gradients). This is the theoretically-motivated
+# direction, opposite to the current SA-NWD design.
+#
+# Formula: C_adapt = c_base * (1 + k * sqrt(avg_area / ref_area))
+#   ref_area = dataset median normalized area (0.002315 for drone dataset)
+#   small objects (S < ref): C < c_base*(1+k) → stricter loss → larger gradients
+#   large objects (S > ref): C > c_base*(1+k) → more lenient loss
+#
+# C value comparison at k=1, c_base=12 (drone dataset):
+#   p10  (tiny):   C ≈ 16.7   vs current SA-NWD C ≈ 650
+#   median:        C ≈ 24.0   vs current SA-NWD C ≈ 261
+#   p90  (large):  C ≈ 29.0   vs current SA-NWD C ≈ 188
+# ============================================================
+
+REF_AREA_DRONE = 0.002315  # drone dataset normalized area median
+
+
+def sa_nwd_reverse(box1, box2, c_base=12.0, k=1.0, ref_area=REF_AREA_DRONE, eps=1e-7):
+    """Reverse Scale-Adaptive NWD: C increases with object scale.
+
+    C_adapt = c_base * (1 + k * sqrt(avg_area / ref_area))
+
+    This is the Fisher-theoretically-motivated direction:
+      small objects → smaller C → stricter loss → larger gradient signal
+      large objects → larger C → more lenient loss
+
+    Used in Experiment E to validate direction of scale adaptation.
+
+    Args:
+        box1, box2: (..., 4) tensors in xyxy format
+        c_base:     Base normalization constant (default 12.0)
+        k:          Scale adaptation factor (default 1.0)
+        ref_area:   Reference normalized area (dataset median, default 0.002315)
+    Returns:
+        score: (...,) tensor in [0, 1]
+    """
+    mu1, sigma1 = bbox_to_gaussian(box1, eps)
+    mu2, sigma2 = bbox_to_gaussian(box2, eps)
+    w2 = wasserstein_2d(mu1, sigma1, mu2, sigma2)
+
+    area1 = bbox_area(box1, eps)
+    area2 = bbox_area(box2, eps)
+    avg_area = (area1 + area2) / 2.0
+
+    # Reverse: C grows with scale (opposite of sa_nwd)
+    ref = torch.tensor(ref_area, dtype=avg_area.dtype, device=avg_area.device)
+    c_adapt = c_base * (1.0 + k * torch.sqrt(avg_area / ref.clamp(min=eps)))
+
+    score = torch.exp(-torch.sqrt(w2 + eps) / c_adapt)
+    return score
+
+
+def patch_sa_nwd_loss_reverse(c_base=12.0, k=1.0, alpha=0.5,
+                               ref_area=REF_AREA_DRONE):
+    """Patch BboxLoss with Reverse SA-NWD + CIoU (Experiment E).
+
+    Hybrid loss = alpha * Reverse-SA-NWD + (1-alpha) * CIoU
+    C_adapt = c_base * (1 + k * sqrt(avg_area / ref_area))
+
+    Direction: large objects get large C (lenient), small objects get small C (strict).
+    This is the Fisher-equivariant compensation direction.
+
+    Args:
+        c_base:    Base normalization constant (default 12.0)
+        k:         Scale factor (default 1.0)
+        alpha:     NWD blend weight (default 0.5)
+        ref_area:  Reference area for normalization (default: drone dataset median)
+    """
+    try:
+        from ultralytics.utils.loss import BboxLoss
+        from ultralytics.utils.tal import bbox2dist
+        from ultralytics.utils.metrics import bbox_iou
+
+        def _patched_forward(self, pred_dist, pred_bboxes, anchor_points,
+                             target_bboxes, target_scores, target_scores_sum,
+                             fg_mask, imgsz, stride):
+            """Reverse SA-NWD + CIoU hybrid loss (Experiment E)."""
+            weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
+            pred_fg = pred_bboxes[fg_mask]
+            target_fg = target_bboxes[fg_mask]
+
+            # Reverse SA-NWD: C grows with scale
+            rev_score = sa_nwd_reverse(pred_fg, target_fg,
+                                       c_base=c_base, k=k, ref_area=ref_area)
+            loss_rev = ((1.0 - rev_score).unsqueeze(-1) * weight).sum() / target_scores_sum
+
+            # CIoU component (unchanged)
+            ciou = bbox_iou(pred_fg, target_fg, xywh=False, CIoU=True)
+            loss_ciou = ((1.0 - ciou).unsqueeze(-1) * weight).sum() / target_scores_sum
+
+            loss_iou = alpha * loss_rev + (1.0 - alpha) * loss_ciou
+
+            if self.dfl_loss:
+                target_ltrb = bbox2dist(anchor_points, target_bboxes,
+                                        self.dfl_loss.reg_max - 1)
+                loss_dfl = self.dfl_loss(
+                    pred_dist[fg_mask].view(-1, self.dfl_loss.reg_max),
+                    target_ltrb[fg_mask]
+                ) * weight
+                loss_dfl = loss_dfl.sum() / target_scores_sum
+            else:
+                target_ltrb = bbox2dist(anchor_points, target_bboxes)
+                target_ltrb = target_ltrb * stride
+                target_ltrb[..., 0::2] /= imgsz[1]
+                target_ltrb[..., 1::2] /= imgsz[0]
+                pred_dist_s = pred_dist * stride
+                pred_dist_s[..., 0::2] /= imgsz[1]
+                pred_dist_s[..., 1::2] /= imgsz[0]
+                import torch.nn.functional as F
+                loss_dfl = (
+                    F.l1_loss(pred_dist_s[fg_mask], target_ltrb[fg_mask],
+                              reduction='none').mean(-1, keepdim=True) * weight
+                ).sum() / target_scores_sum
+
+            return loss_iou, loss_dfl
+
+        BboxLoss.forward = _patched_forward
+        print(f"\u2713 Reverse SA-NWD loss applied (Exp E): "
+              f"c_base={c_base}, k={k}, alpha={alpha}, ref_area={ref_area}")
+        print(f"  C(small)~{c_base*(1+k*(0.000354/ref_area)**0.5):.1f}  "
+              f"C(median)~{c_base*(1+k):.1f}  "
+              f"C(large)~{c_base*(1+k*(0.004655/ref_area)**0.5):.1f}")
+    except Exception as e:
+        print(f"\u26a0 Reverse SA-NWD loss patch failed: {e}")
