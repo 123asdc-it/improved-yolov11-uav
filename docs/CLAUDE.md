@@ -261,7 +261,7 @@ seed=0, pretrained='yolo11n.pt'
 ## 对话计数器
 
 ```
-当前计数：1 / 5
+当前计数：3 / 5
 上次快照：2026-03-19，第 2 轮
 
 每 5 轮对话后触发快照，计数归零。
@@ -305,70 +305,228 @@ seed=0, pretrained='yolo11n.pt'
   4. Day 5-10：Theorem 1 完整证明（附录） + Proposition 2 正文
   5. Day 14：投稿 IEEE TGRS
 
-## 待完成清单
+## 待完成清单（最终完整版，2026-03-19 整合）
+
+---
+
+### 一、代码修复（Day 0，30 分钟）
 
 ```
-代码修复（Day 0，最高优先级）：
-  [ ] C1: nwd.py:72 sa_nwd() 默认 k=2.0 → k=1.0
-  [ ] C2: nwd.py:~191 patch_sa_nwd_loss() 默认 k=2.0 → k=1.0（之前漏掉）
-  [ ] C3: verify_error_distribution.py L267 cfg.get(path,...) → cfg.get('path',...)
-  [ ] C4: run_new_queue.sh 去掉 set -e
+[ ] C1: nwd.py:72  sa_nwd() 默认 k=2.0 → k=1.0
+[ ] C2: nwd.py:~191  patch_sa_nwd_loss() 默认 k=2.0 → k=1.0（之前漏掉）
+[ ] C3: verify_error_distribution.py L267  cfg.get(path,...) → cfg.get('path',...)
+[ ] C4: run_new_queue.sh  去掉 set -e，让函数内部 exit code 检查负责错误处理
+[ ] C5: nwd.py:96-97  avg_area 加合理 lower bound clamp（防训练初期预测框极端失真）
+        建议：avg_area = avg_area.clamp(min=1e-4)（stride-normalized 坐标系下）
+```
 
-论文修改（Day 0-3）：
-  [ ] P0（最高）: NMS 从贡献降级为"可选组件，待 E5 验证"
-  [ ] P1: σ=w/2 → σ=w/6，加脚注说明与 NWD 原文实现对齐
-  [ ] P2: 加 W₂=√(W₂²) 的一句说明
-  [ ] P3: S̄ 描述改为 detection head coordinate frame（不是像素面积）
-  [ ] P4: Exp E 描述加一句：只改 Loss 方向，TAL 保持 forward
-  [ ] P5: 标题去掉 Fisher-Guided
-  [ ] P6: 全文 scale-equivariant → scale-adaptive
-  [ ] P7: Introduction 第一段明确 anti-UAV + 极小目标检测定位
-  [ ] P8: 贡献合并为 3 条，加 "one metric fixes all" 叙事框架
-  [ ] P9: Key distinction 加一层：NWD 原文只改 label assignment，本文全链路替换
-  [ ] P10: refs.bib 删掉 zhong2025asanwd 和 lei2025rfwnet 的主观 note 字段
-  [ ] P11: 消融表格式统一（小数），加 mAP50-95，拆 SA-NWD 列为 Loss/TAL 两列
-  [ ] P12: Fig.1 caption 说明负贡献曲线是消融的一部分
-  [ ] P13: §IV Dataset 补充采集方式（设备/时间/抽帧/标注协议）
-  [ ] P14: 新增 Limitation 段
+---
 
-新增实验（按优先级）：
-  P0（必须）：
-  [ ] E1: x=W₂/C 分布统计（~6h 重跑带 logging 的完整训练，最高优先级）
-  [ ] E2: TAL 消融 Loss-only（stock yolo11n，只 patch loss，~6h）
-  [ ] E3: TAL 消融 TAL-only（stock yolo11n，只 patch TAL，~6h）
-  [ ] E4: Asa-NWD batch-level 对比（全 batch GT 均值面积，~6h）
-  [ ] E5: SA-NWD-NMS 验证（use_nwd_nms=True，~6h，视结果决定是否保留 NMS 贡献）
-  [ ] E6: 私有集 3 seeds（seed=1,2，~12h）
-  [ ] E7: AI-TOD dry run（1 epoch，确认 batch=8 不 OOM，~30min）
-  [ ] E8-E11: AI-TOD 完整消融（Baseline/NWD/SA-NWD/+P2，各~24-36h）
+### 二、论文修改（Day 0-3）
 
-  P1（强烈建议）：
-  [ ] E12-E13: RT-DETR 跨检测器（AI-TOD，降为 P2，TCSVT 版本补）
+**🔴 P0：逻辑矛盾，立刻修（不改不能投）**
 
-理论工作（等 E1 结果后开始）：
-  [ ] T1: 确定 Proposition 2 叙事角度（基于 E1 x 分布）
-  [ ] T2: Theorem 1 完整证明（附录，注意指数是 ⁴ 不是 ²）
-  [ ] T3: Proposition 2 正文（显式引用 Theorem 1 假设作为前提）
-  [ ] T4: §III 叙事重构（Theorem 1 → Prop.2 → SA-NWD 设计）
+```
+[ ] P0:  NMS 声称贡献但实验未用 → 降级为"可选组件，视 E5 结果决定"
+[ ] P1:  L42 摘要 "Fisher information" 残留 → 改为 "expected gradient signal analysis"
+[ ] P2:  L62 \mathcal{O}(s^{-2}) → \propto s^{-2}（与 Theorem 1 统一）
+[ ] P3:  L66-L80 两套贡献列表共存，Training Stability 重复两次 → 删一套，合并为 3 条
+[ ] P4:  L68/L70/L78/L211 scale-equivariant 残留 → 全部改为 scale-adaptive
+[ ] P5:  L95 "while we address metric" 与 P2 head 贡献矛盾
+         → 改为包含 metric+architecture 双贡献的表述
+[ ] P6:  L99 DIoU 无 \cite{} → 改为 DIoU~\cite{zheng2020ciou}（同一篇论文）
+[ ] P7:  L136 σ=w/2 与代码 w/6 不一致 → 改为 σ=w/6，加脚注
+[ ] P8:  L141-146 W₂² 到 W₂ 无说明 → 加一句 W₂=√(W₂²)
+[ ] P9:  L164 S̄ 单位不明确 → 改为 "in the detection head's coordinate frame"
+[ ] P10: L172 Exp E 只改 Loss 方向，TAL 未说明 → 加一句 partial reverse 说明
+[ ] P11: eval_results.json 的 FPS=59.4 对应旧模型 → 用 nwd_p2/best.pt 重测 FPS
+         （见实验 E_fps，5 分钟，不需要重新训练）
+```
 
-新增论文内容（等实验完成后）：
-  [ ] 消融表填入 Exp D/E 行、TAL 单独消融行、Asa-NWD 行、NMS 行（视 E5）
-  [ ] SOTA 表填入 NWD (k=0) 行
-  [ ] k-sweep 折线图 + alpha sweep 结果（§IV-C）
-  [ ] AI-TOD 实验表格（§IV-B，含 NWD 原文 Faster R-CNN 参考行†）
-  [ ] AP 按尺寸分桶分析（tiny/small/medium，AI-TOD 官方评估工具）
-  [ ] x=W₂/C 分布图（E1 结果，验证 Proposition 2）
-  [ ] Failure Mode Analysis（测试集漏检/误检案例，使用 gradcam.py）
-  [ ] 私有集 3 seeds 标准差加入主结果表
-  [ ] §IV Dataset 数据集来源说明（自采，IP 摄像头，4个采集批次）
+**🟠 P1：高优先级（Day 0-3）**
 
-需要新建的脚本（执行时写）：
-  [ ] scripts/run_working_point_log.py（E1，logging 版训练）
-  [ ] scripts/run_tal_ablation.py（E2/E3）
-  [ ] scripts/run_asanwd_compare.py（E4，batch-level 均值）
-  [ ] scripts/run_nwd_nms.py（E5）
-  [ ] scripts/convert_aitod_to_yolo.py（含自动生成 configs/aitod_data.yaml）
-  [ ] scripts/run_aitod_queue.sh（E7-E11 串行队列）
-  [ ] scripts/analyze_failure_cases.py
-  [ ] scripts/analyze_ap_by_size.py
+```
+[ ] P12: L27 标题去掉 Fisher-Guided
+[ ] P13: L52 Introduction 第一段改为 "tiny object detection in aerial imagery"，
+         anti-UAV 作为应用实例，引用 AI-TOD 统计数据作为问题动机
+[ ] P14: L52 zhu2021detection（VisDrone 论文）引用不合适 → 换为 AI-TOD 论文引用
+         @inproceedings{wang2021aitod, author=Wang...}
+[ ] P15: 贡献列表加 "one metric fixes all" 叙事框架
+[ ] P16: L103 Key distinction 加两层区分：
+         (1) per-pair vs batch-level（vs Asa-NWD）
+         (2) full-pipeline（loss+TAL）vs single-stage（vs NWD 原文只改 label assignment）
+         (3) adaptive C in hybrid loss（vs RFWNet 固定 C 的 hybrid）
+[ ] P17: E4 结果出来后：若 per-pair vs batch-level Δ < 0.3%，Key distinction 降调
+         → 改为"设计更简洁，无需维护 batch 统计"
+[ ] P18: refs.bib 删掉 zhong2025asanwd 和 lei2025rfwnet 的主观 note 字段
+[ ] P19: refs.bib L210 bengio2009curriculum @misc → @inproceedings
+[ ] P20: 消融表格式统一（小数），加 mAP50-95 列，拆 SA-NWD 列为 Loss/TAL 两列
+[ ] P21: Fig.1 caption 说明负贡献曲线是消融的一部分
+[ ] P22: §IV Dataset 补充：采集方式（IP 摄像头/时间/抽帧/标注协议）
+[ ] P23: §IV Dataset 补充：相邻帧交叉污染说明
+         → 加一句 "consecutive-frame overlap exists but affects all methods equally"
+[ ] P24: §IV Implementation Details 加 "Ultralytics 8.4.22" 版本号
+[ ] P25: Eq.(3) 后加一句 1/√S 函数形式的解释
+         → "The √ form reflects that C_adapt scales inversely with linear object dimension √S̄,
+            since positional uncertainty is a one-dimensional quantity."
+[ ] P26: §IV Analysis 主动论证天花板效应：
+         mAP50-95（mAP50=0.9781 对应 mAP50-95=0.4723）说明高 mAP50 基线不代表饱和，
+         严格定位精度仍有改进空间；如果 SA-NWD 在 mAP50-95 的相对提升 > mAP50，
+         加一句说明
+[ ] P27: Conclusion 加一句即插即用价值：
+         "SA-NWD is implemented as a drop-in replacement compatible with the
+          Ultralytics training framework, requiring no architectural modification."
+[ ] P28: §III-C 开头（或 Abstract）加一句 NWD 严格超集：
+         "SA-NWD with k=0 exactly recovers standard NWD, making SA-NWD a
+          strict generalization of NWD."
+[ ] P29: Theorem 1 的 Remark 或附录加一句尺寸误差扩展：
+         "The analysis extends to width/height errors by symmetry of the Gaussian
+          parameterization; the s^{-2} scaling holds for any linear perturbation direction."
+[ ] P30: Hybrid Loss 梯度幅值匹配说明（T-C）：
+         alpha sweep 结果出来后，若 alpha=0.3/0.5/0.7 结果相近，
+         在 alpha sweep 段落加一句说明梯度幅值大致匹配
+[ ] P31: Conclusion 前新增 Limitation 段
+[ ] P32: §IV val-best checkpoint 选择说明：
+         "Best checkpoint selected by validation mAP; test set results reported
+          without further selection."
+[ ] P33: Related Work 加 "Tiny Object Detection in Aerial Imagery" 小节，引用 AI-TOD
+[ ] P34: P2 head 段落（L219）加一句为何不用 stride=2：
+         "stride=2 would double the feature map to 640×640 but increase FLOPs
+          substantially; stride=4 provides sufficient coverage for our target scale."
+[ ] P35: Cover Letter 准备（投稿前）：贡献3句 + 适合 TGRS 理由 + 无一稿多投声明
+[ ] P36: 投稿前检查：所有 \ref{} 有对应 \label{}，Figure/Table 编号连续
+[ ] P37: 所有图表使用 PDF 格式（矢量图，避免分辨率问题）
+```
+
+**🟡 P2（中优先级，有时间做）**
+
+```
+[ ] P38: X-D：mAP50-95 绝对值（0.4723）在论文里加一句解释：
+         "For extreme tiny objects, high-IoU thresholds are inherently challenging;
+          the mAP50-95 value reflects this difficulty."
+[ ] P39: W-C：交叉引用一致性检查（投稿前系统性验证）
+```
+
+---
+
+### 三、实验清单
+
+**P0（必须，不做不能投）：**
+
+```
+[ ] E_fps:  用 nwd_p2/best.pt 重测 FPS（5分钟，修正 eval_results.json 数字问题）
+[ ] E_test: 用 nwd_p2/best.pt 在 test split 跑 val（5分钟，报告 test set 结果）
+[ ] E_p2only: "+P2 only" 消融（stock yolo11n + P2 yaml，无 NWD patch，~6h）
+              → 分离 P2 head 的独立贡献，消融逻辑完整性
+[ ] E1:  x=W₂/C 分布统计（~6h 重跑带 logging 的完整训练）
+         → 必须在 Proposition 2 写作前完成
+[ ] E2:  TAL 消融 Loss-only（stock yolo11n，只 patch loss，~6h）
+[ ] E3:  TAL 消融 TAL-only（stock yolo11n，只 patch TAL，~6h）
+[ ] E4:  Asa-NWD batch-level 对比（全 batch GT 均值面积精准实现，~6h）
+[ ] E5:  SA-NWD-NMS 验证（use_nwd_nms=True，~6h，视结果决定 NMS 去留）
+         → 若开启 NMS 后 FPS 下降 >5%，即使正贡献也要在论文里说明效率代价
+[ ] E6:  私有集 3 seeds（seed=1,2，~12h）
+[ ] E7:  AI-TOD dry run（1 epoch，确认不 OOM，~30min）
+[ ] E8:  AI-TOD Baseline（YOLOv11n + CIoU，imgsz=800，~24-36h）
+[ ] E9:  AI-TOD + NWD k=0（~24-36h）
+[ ] E10: AI-TOD + SA-NWD（固定 c_base=12, k=1.0，~24-36h）
+[ ] E11: AI-TOD + SA-NWD + P2（~24-36h）
+[ ] E12: AI-TOD + P2 only（无 SA-NWD，~24-36h，对应 E_p2only 的 AI-TOD 版本）
+```
+
+**P1（强烈建议）：**
+
+```
+[ ] Grad-CAM 可视化对比（CIoU vs SA-NWD，已有 gradcam.py）
+[ ] AP 按尺寸分桶（tiny/small/medium，AI-TOD 官方工具 + 私有集）
+[ ] Failure Mode Analysis（测试集漏检/误检案例）
+```
+
+**P2（TCSVT 升刊用）：**
+
+```
+[ ] RT-DETR 跨检测器（需单独写 patch，不用 monkey-patch）
+[ ] 第三个数据集
+[ ] YOLOv8n 跨骨干验证
+```
+
+---
+
+### 四、理论工作（等 E1 结果后开始）
+
+```
+[ ] T1: 根据 E1 x=W₂/C 分布结果确定 Proposition 2 叙事角度
+        x ∈ [0.3,1.5] → 工作点均衡化叙事
+        x ∈ [0.01,0.1] → 训练稳定性叙事（防爆炸/过拟合）
+        x ≈ 0.003 → 需重新找理论角度
+[ ] T2: Theorem 1 完整证明（放附录）
+        简化假设：两 box 仅中心偏移，尺寸相同 s×s
+        注意指数是 (s+|ε|)⁴ 不是 ²
+        附加 Remark：分析扩展到尺寸误差方向（by symmetry）
+[ ] T3: Proposition 2 正文（§III-C 新增）
+        显式引用 Theorem 1 假设（W₂ ∝ s 的前提来自 ε~N(0,σ²s²)）
+        x·e^{-x} 工作点分析：固定 C 的问题 + SA-NWD 的均衡化
+        与 Exp E 的理论预测对应（partial reverse → 小目标饱和）
+[ ] T4: §III 叙事重构（Theorem 1 → Prop.2 → SA-NWD 设计的完整逻辑链）
+```
+
+---
+
+### 五、数据溯源问题（必须在投稿前解决）
+
+```
+[ ] 确认 eval_results.json 的用途和状态：
+    - 该文件数字（mAP50=0.9552 等）与论文数字（0.9600 等）不一致
+    - 原因已查明：eval_results.json 是早期不同配置的实验结果，
+      论文数字来自 runs/ablation/*/results.csv 的 best epoch
+    - FPS=59.4 来自 +NWD+P2+SimAM+PConv 配置，不是最终 nwd_p2 模型
+    - 行动：用 nwd_p2/best.pt 重跑 E_fps，更新 eval_results.json 或加说明
+[ ] 在论文里明确论文数字来源：
+    "Results reported as best validation mAP during training (runs/ablation/)"
+```
+
+---
+
+### 六、需要新建的脚本
+
+```
+[ ] scripts/run_working_point_log.py  （E1，logging 版训练，统计 x=W₂/C）
+[ ] scripts/run_tal_ablation.py       （E2/E3，Loss-only / TAL-only）
+[ ] scripts/run_asanwd_compare.py     （E4，batch-level 均值精准实现）
+[ ] scripts/run_nwd_nms.py            （E5，use_nwd_nms=True）
+[ ] scripts/run_p2_only.py            （E_p2only，无 NWD 的 P2 消融）
+[ ] scripts/convert_aitod_to_yolo.py  （AI-TOD COCO→YOLO 转换，含生成 aitod_data.yaml）
+[ ] scripts/run_aitod_queue.sh        （E7-E12 串行队列）
+[ ] scripts/analyze_failure_cases.py
+[ ] scripts/analyze_ap_by_size.py
+```
+
+---
+
+### 七、时间线（最终版）
+
+```
+Day 0    代码修复 C1-C5
+         E_fps / E_test（5分钟，用已有 best.pt，现在就能跑）
+         论文 P0-P11（最高优先级修改）
+         提交 E1（最高优先级，~6h）→ E2/E3/E4/E5/E6/E_p2only 排队
+         xView 账号申请（你去操作）
+
+Day 3    E1-E6 + E_p2only 完成
+         根据 E1 确定 Proposition 2 方向
+         根据 E4 确定 Key distinction 措辞（P17）
+         根据 E5 确定 NMS 贡献去留（P0）
+         论文 P12-P37 修改
+         AI-TOD dry run（E7）→ 确认不 OOM → 启动 E8-E12
+
+Day 5-10 理论写作 T1-T4（E1 结果确认后）
+         E8-E12 进行中（AI-TOD，~4-6天）
+
+Day 12   AI-TOD 完成，填入论文
+         AP 分桶分析 + Failure Mode Analysis
+         x=W₂/C 分布图
+
+Day 14   全文整合，投稿前检查清单（P36/P39）
+         Cover Letter 准备（P35）
+         投稿 IEEE TGRS
 ```
