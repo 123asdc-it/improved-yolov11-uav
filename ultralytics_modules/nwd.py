@@ -257,7 +257,7 @@ def patch_sa_nwd_loss(c_base=12.0, k=2.0, alpha=0.5):
         print(f"\u26a0 SA-NWD loss patch failed: {e}")
 
 
-def patch_sa_nwd_tal(c_base=12.0, k=2.0):
+def patch_sa_nwd_tal(c_base=12.0, k=2.0, nwd_min=0.3):
     """Monkey-patch ultralytics TaskAlignedAssigner to use SA-NWD."""
     try:
         from ultralytics.utils.tal import TaskAlignedAssigner
