@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Baseline",
+    "map50": 0.9552,
+    "map": 0.4894
+  },
+  {
+    "name": "+NWD",
+    "map50": 0.9436,
+    "map": 0.4777
+  },
+  {
+    "name": "+NWD+P2",
+    "map50": 0.9471,
+    "map": 0.4765
+  },
+  {
+    "name": "+NWD+P2+SimAM",
+    "map50": 0.9032,
+    "map": 0.4513
+  },
+  {
+    "name": "+NWD+P2+SimAM+PConv",
+    "map50": 0.9666,
+    "map": 0.4655
+  },
+  {
+    "name": "Full (Ours)",
+    "map50": 0.9373,
+    "map": 0.4424
+  }
+]

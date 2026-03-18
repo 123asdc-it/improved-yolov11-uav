@@ -43,5 +43,12 @@ nohup.out
 # Temporary eval outputs
 baseline_640_eval.json
 
+# 例外：消融 YAML 和评估结果入 git
+!configs/ablation/
+!eval_results.json
+
+# 忽略：历史训练日志（54MB，本地备份即可）
+archive/results/server_logs/
+
 # Misc docs (not project code)
 远程GPU操作手册.md

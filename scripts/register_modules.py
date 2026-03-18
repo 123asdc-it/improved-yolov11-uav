@@ -142,9 +142,6 @@ def _patched_parse_model(d, ch, verbose=True):
                 n = 1
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
-        elif m is BiFPN_Concat:
-            c2 = sum(ch[x] for x in f)
-            args = [1, len(f)]  # dimension, num_inputs
         elif m in frozenset({Detect}):
             args.extend([reg_max, end2end, [ch[x] for x in f]])
             if m in {Detect}:
@@ -152,14 +149,6 @@ def _patched_parse_model(d, ch, verbose=True):
         elif m in {SimAM}:  # pass-through attention: same channels
             c2 = ch[f]
             args = [c2]
-        elif m is RepVGGBlock:  # [out_channels, stride]
-            c1 = ch[f]
-            c2 = make_divisible(min(args[0], max_channels) * width, 8)
-            stride = args[1] if len(args) > 1 else 1
-            args = [c1, c2, 3, stride]
-        elif m is CARAFE:  # [channels, scale_factor]
-            c2 = ch[f]
-            args = [c2, *args]  # prepend channels
         else:
             c2 = ch[f]
 

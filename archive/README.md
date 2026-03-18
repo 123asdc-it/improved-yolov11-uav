@@ -35,6 +35,18 @@
 详见 `archive/sessions/README.md`。
 **不得删除**，含实验选型分析、Fisher 失败原因、理论修改讨论等关键决策上下文，可用于论文 Discussion 写作参考。
 
+### `runs/` — 归档历史实验运行结果
+
+详见 `archive/runs/README.md`。**注意**：主消融实验在项目根目录 `runs/ablation/`，不在此目录。
+
+| 子目录 | 内容 | 大小 |
+|--------|------|------|
+| `detect/` | 早期 detect 实验（20 个，全低于最终方案） | ~490MB |
+| `early_ablation/` | 早期架构消融（8 个） | ~80MB |
+| `sa_nwd/` | 早期 SA-NWD 实验（2 个） | ~50MB |
+| `val_outputs/` | 48 个评估输出（可重新生成） | ~127MB |
+| `eval_640/` | 640 分辨率基线评估 | ~3MB |
+
 ### `results/` — 历史评估结果
 
 详见 `archive/results/README.md`。
@@ -42,6 +54,8 @@
 | 文件 | 内容 |
 |------|------|
 | `baseline_640_eval.json` | YOLOv11n baseline 在 640 分辨率下的评估结果（论文用 1280，此文件供参考） |
+| `ablation_results_server.json` | 旧版消融汇总（数字偏小，不用于论文） |
+| `server_logs/` | 历史训练日志 30 个（~54MB，不入 git） |
 
 ---
 
