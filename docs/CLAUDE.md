@@ -237,19 +237,37 @@ imgsz=1280, cos_lr=True, mosaic=1.0, mixup=0.15, copy_paste=0.2,
 seed=0, pretrained='yolo11n.pt'
 ```
 
-## 论文修改记录（已完成）
+## 论文/代码修改记录（已完成）
 
-| 问题 | 修改内容 | 状态 |
+| 问题 | 修改内容 | 轮次 |
 |------|---------|------|
-| Theorem 2 跳步推导（C∝s→C∝√s 无依据） | 删除，改为正则化视角叙述 + Design Validation remark | ✅ |
-| 摘要"providing stronger gradients" | 改为"scale-adaptive regularization" | ✅ |
-| Introduction/Related Work 声称"唯一最优 C∝1/√s" | 改为"annotation-noise regularization 动机 + 实验验证" | ✅ |
-| Theorem 1 术语"Fisher information" | 改为"expected squared gradient G_IoU" | ✅ |
-| TAL 公式 α 符号冲突 | TAL 改用 γ/δ | ✅ |
-| 消融表 BiFPN 数据矛盾 | 重组消融表，加 Exp D/E 占位行 | ✅ |
-| SOTA 表假引用/占位符 | 改为"loss function comparison"，加 NWD 固定 C 行占位 | ✅ |
-| Future Work 引用 VisDrone | 改为 Anti-UAV / Det-Fly | ✅ |
-| refs.bib 3 条假引用 | 删除，新增 Anti-UAV 引用 | ✅ |
+| Theorem 2 跳步推导 | 删除，改为正则化视角 + Design Validation remark | 第1轮 |
+| 摘要"providing stronger gradients" | 改为"scale-adaptive regularization" | 第1轮 |
+| Introduction/Related Work 声称唯一最优 | 改为"annotation-noise regularization 动机 + 实验验证" | 第1轮 |
+| Theorem 1 术语"Fisher information" | 改为"expected squared gradient G_IoU" | 第1轮 |
+| TAL 公式 α 符号冲突 | TAL 改用 γ/δ | 第1轮 |
+| refs.bib 假引用 | 删除 3 条，新增 Anti-UAV / AI-TOD 引用 | 第1+2轮 |
+| 消融表重组 | 加 Exp D/E/E2/E3/E_p2only 占位行，加 P/R 列 | 第2+3轮 |
+| SOTA 表 | 改为 loss function comparison，FPS 列占位 | 第2+3轮 |
+| 标题去掉 Fisher-Guided | 已改 | 第2轮 |
+| scale-equivariant 全文替换 | 改为 scale-adaptive（4处） | 第2轮 |
+| NMS 贡献降级 | 改为可选组件，实验验证中 | 第2轮 |
+| Related Work 新增 Tiny Object Detection 小节 | 引用 AI-TOD | 第2轮 |
+| σ=w/2 → σ=w/6 | 加脚注说明 | 第2轮 |
+| W₂²→W₂ 加说明 | 补一句 W₂=√(W₂²) | 第2轮 |
+| S̄ 单位说明 | 改为 "detection head's coordinate frame" | 第2轮 |
+| Exp E partial reverse | 加说明（只改 Loss 方向） | 第2轮 |
+| Conclusion 加 Limitation + 即插即用声明 | 已添加 | 第2轮 |
+| §IV 加 Ultralytics 版本号 / val-best 说明 / 相邻帧污染 | 已添加 | 第2轮 |
+| 论文行内中文注释 22 处 | 全部删除 | 第3轮 |
+| mAP 格式不统一 | 两张表全部改为小数格式（0.xxxx） | 第3轮 |
+| 孤立 \label{} 4 个 | 全部补 \ref{} 引用 | 第3轮 |
+| FPS=59.4 来源错误 | 摘要改为注脚待定，表格加 FPS 占位列 | 第3轮 |
+| refs.bib @article+booktitle 误用 | redmon2016you → @inproceedings | 第3轮 |
+| refs.bib @software 类型 | yolov5/yolov8/yolo11 → @misc + howpublished | 第3轮 |
+| nwd.py sa_nwd_loss k=2.0 | → k=1.0（C2 当时漏修） | 第3轮 |
+| nwd.py patch_all_nwd NMS k | use_sa=False 时 NMS k 覆盖为 0 | 第3轮 |
+| run_nwd_fixed.py use_sa=True+k=0 | 加注释说明语义 | 第3轮 |
 
 ## 上下文快照（2026-03-19，第 1 轮）
 
@@ -261,7 +279,7 @@ seed=0, pretrained='yolo11n.pt'
 ## 对话计数器
 
 ```
-当前计数：1 / 5
+当前计数：3 / 5
 上次快照：2026-03-19，第 3 轮
 
 每 5 轮对话后触发快照，计数归零。

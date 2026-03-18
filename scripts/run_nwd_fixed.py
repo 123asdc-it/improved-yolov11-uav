@@ -29,6 +29,9 @@ sys.path.insert(0, str(PROJECT_ROOT / 'scripts'))
 import register_modules  # noqa: F401
 
 # k=0: c_adapt = c_base * (1 + 0/sqrt(S)) = c_base = 12 (fixed constant)
+# Note: use_sa=True with k=0 intentionally reuses the SA-NWD code path
+# with k=0, which mathematically reduces to standard NWD (fixed C=c_base).
+# This is equivalent to use_sa=False but keeps identical code paths for fairness.
 from ultralytics_modules.nwd import patch_all_nwd
 patch_all_nwd(c_base=12.0, k=0.0, alpha=0.5, use_sa=True, nwd_min=0.3)
 print('[Exp D] Fixed NWD: k=0, C=12 (constant), alpha=0.5')

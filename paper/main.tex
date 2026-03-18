@@ -24,10 +24,9 @@
 \newtheorem{remark}{Remark}
 
 % ======================== Title ========================
-% P12: 去掉 Fisher-Guided
 \title{SA-NWD: Scale-Adaptive Wasserstein Distance for Tiny Object Detection in Aerial Imagery}
 
-% TODO: 投稿前替换作者信息（姓名、学校、邮箱）
+% TODO: Replace with actual author information before submission
 \author{
   \IEEEauthorblockN{First Author\IEEEauthorrefmark{1}, Second Author\IEEEauthorrefmark{1}, Third Author\IEEEauthorrefmark{1}}
   \IEEEauthorblockA{\IEEEauthorrefmark{1}School of XXX, XXX University, City, China \\
@@ -40,8 +39,7 @@
 
 % ======================== Abstract ========================
 \begin{abstract}
-% P1: 摘要去掉 "Fisher information" → "expected gradient signal analysis"
-Tiny object detection in aerial imagery faces a fundamental challenge: the inherent scale bias of IoU-based metrics provides insufficient gradient signal for small targets. In this paper, we propose a Scale-Adaptive Normalized Wasserstein Distance (SA-NWD) framework, validated on UAV-based anti-drone detection as the primary application. We first analyze the scale bias of IoU loss through expected gradient signal analysis, showing that gradient signal vanishes quadratically for small objects. Our proposed SA-NWD adapts the normalization constant as $C_{\text{adapt}} = C_{\text{base}}(1+k/\sqrt{\bar{S}})$, providing scale-adaptive regularization that prevents over-penalization of positional noise for small-scale targets. SA-NWD is a strict generalization of standard NWD: setting $k=0$ exactly recovers fixed-$C$ NWD, while $k>0$ enables per-object scale adaptation validated through systematic ablation. Combined with a P2 small object detection head (stride 4), our method achieves mAP$_{50}$ of 97.81\% on a UAV drone detection dataset, surpassing the YOLOv11n baseline by 1.81\% while maintaining 2.66M parameters and real-time inference at 59.4 FPS on an RTX 3060. Ablation studies validate each component's contribution.
+Tiny object detection in aerial imagery faces a fundamental challenge: the inherent scale bias of IoU-based metrics provides insufficient gradient signal for small targets. In this paper, we propose a Scale-Adaptive Normalized Wasserstein Distance (SA-NWD) framework, validated on UAV-based anti-drone detection as the primary application. We first analyze the scale bias of IoU loss through expected gradient signal analysis, showing that gradient signal vanishes quadratically for small objects. Our proposed SA-NWD adapts the normalization constant as $C_{\text{adapt}} = C_{\text{base}}(1+k/\sqrt{\bar{S}})$, providing scale-adaptive regularization that prevents over-penalization of positional noise for small-scale targets. SA-NWD is a strict generalization of standard NWD: setting $k=0$ exactly recovers fixed-$C$ NWD, while $k>0$ enables per-object scale adaptation validated through systematic ablation. Combined with a P2 small object detection head (stride 4), our method achieves mAP$_{50}$ of 0.9781 on a UAV drone detection dataset, surpassing the YOLOv11n baseline by 1.81\% while maintaining 2.66M parameters and real-time inference on an RTX 3060.\footnote{Inference speed will be reported upon completion of re-evaluation using the final \texttt{nwd\_p2} model weights.} Ablation studies validate each component's contribution.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -51,7 +49,6 @@ Tiny object detection, aerial imagery, Wasserstein distance, scale-adaptive, YOL
 % ======================== I. Introduction ========================
 \section{Introduction}
 
-% P13: Introduction 第一段改为 tiny object detection in aerial imagery，anti-UAV 作为应用实例
 \IEEEPARstart{T}{iny} object detection in aerial imagery is a fundamental challenge in computer vision, with applications including surveillance, anti-UAV defense, environmental monitoring, and disaster assessment~\cite{wang2022aitod}. Objects in aerial images often occupy fewer than $100 \times 100$ pixels due to high flight altitude; in extreme anti-UAV scenarios such as detecting drones against complex sky backgrounds, target areas can fall below $50 \times 50$ pixels. At such scales, standard detection frameworks struggle with two compounding problems:
 
 \begin{itemize}
@@ -59,12 +56,10 @@ Tiny object detection, aerial imagery, Wasserstein distance, scale-adaptive, YOL
   \item \textbf{Metric inadequacy}: Standard IoU-based losses provide unstable gradients for small objects, as even a 2-pixel shift causes a disproportionate IoU drop.
 \end{itemize}
 
-% P5: 改为包含 metric + architecture 双贡献
 Recent work has focused on architectural improvements such as adding high-resolution detection heads~\cite{zhu2021tph} or enhancing feature pyramids. However, the fundamental problem of \emph{metric inadequacy} for small objects has received less attention. The Normalized Wasserstein Distance (NWD)~\cite{wang2022nwd} addresses this by modeling bounding boxes as Gaussian distributions, but its fixed normalization constant treats all scales equally.
 
 We identify a more fundamental issue: the expected squared gradient of standard IoU loss scales as $\propto s^{-2}$ with object scale $s$, meaning small objects receive vanishingly weak gradient signals during training. While NWD partially alleviates this, we show it remains scale-biased under realistic prediction noise models. We address both metric inadequacy and scale coverage by proposing SA-NWD loss with a scale-adaptive normalization constant, integrated with a P2 detection head that provides high-resolution feature maps for tiny targets.
 
-% P3/P15/P16: 合并贡献列表为 3 条，加 one-metric-fixes-all 叙事，加 per-pair vs batch-level 区分
 To address these challenges, we propose \textbf{SA-NWD}, a unified scale-adaptive Wasserstein framework that follows a \emph{one metric, full pipeline} principle: the same adaptive similarity function governs label assignment, regression loss, and (optionally) NMS.
 
 The main contributions are:
@@ -74,7 +69,7 @@ The main contributions are:
 
   \item \textbf{Full-pipeline integration}: SA-NWD is integrated into label assignment (SA-NWD-TAL), regression loss (Hybrid SA-NWD+CIoU, extending~\cite{lei2025rfwnet} with adaptive $C$), and optionally NMS for a unified scale-adaptive detection framework. Prior work (NWD~\cite{wang2022nwd}) only modified label assignment; we apply the same metric throughout.
 
-  \item \textbf{Architectural scale coverage + comprehensive ablation}: We add a P2 detection head (stride 4) for high-resolution feature maps, and conduct comprehensive ablation experiments on a 559-image anti-UAV dataset, validating that SA-NWD (+1.05\% mAP$_{50}$) and P2 head (+0.76\%) are the two effective components while attention modules and feature fusion degrade performance on data-limited scenarios.
+  \item \textbf{Architectural scale coverage and comprehensive ablation}: We add a P2 detection head (stride 4) for high-resolution feature maps, and conduct comprehensive ablation experiments on a 559-image anti-UAV dataset, validating that SA-NWD (+1.05\% mAP$_{50}$) and P2 head (+0.76\%) are the two effective components while attention modules and feature fusion degrade performance on data-limited scenarios.
 \end{itemize}
 
 The rest of this paper is organized as follows: Section~\ref{sec:related} reviews related work. Section~\ref{sec:method} presents the proposed method. Section~\ref{sec:experiments} describes experiments. Section~\ref{sec:conclusion} concludes.
@@ -87,19 +82,16 @@ The rest of this paper is organized as follows: Section~\ref{sec:related} review
 
 The YOLO family~\cite{redmon2016you} has dominated real-time detection. YOLOv8~\cite{yolov8_ultralytics} introduced anchor-free heads, while YOLOv11~\cite{yolo11_ultralytics} adds C3k2 and C2PSA modules. Despite strong general performance, the default three-scale (P3/P4/P5) architecture limits small object detection in aerial imagery.
 
-% P33: 新增 Tiny Object Detection in Aerial Imagery 小节
 \subsection{Tiny Object Detection in Aerial Imagery}
 
 Tiny object detection in aerial imagery has attracted dedicated research effort. AI-TOD~\cite{wang2022aitod} benchmarks eight categories of tiny aerial objects, reporting that over 70\% of instances are smaller than $16 \times 16$ pixels and that standard detectors degrade sharply at this scale. FPN~\cite{lin2017feature} and PANet~\cite{liu2018path} introduced multi-scale fusion for scale coverage. TPH-YOLOv5~\cite{zhu2021tph} added a high-resolution P2 head for drone-captured scenarios. SAHI~\cite{akyon2022sahi} proposed sliced inference for inference-time coverage. In anti-UAV detection, the challenge is detecting the drone itself from ground-based cameras, as in~\cite{zhao2022anti}, where targets appear as single-digit-pixel specks.
 
 \subsection{IoU Variants and Loss Functions}
 
-% P6: DIoU 加 \cite
 GIoU~\cite{rezatofighi2019generalized}, CIoU~\cite{zheng2020ciou}, and DIoU~\cite{zheng2020ciou} added geometric constraints to improve IoU loss. Inner-IoU~\cite{zhang2023inner} addressed scale sensitivity using auxiliary boxes. Powerful-IoU~\cite{liu2023powerful} empirically analyzed IoU gradient magnitudes and proposed target-size-adaptive penalties, noting that IoU gradients differ across scales --- but without a formal expected-gradient treatment.
 
 NWD~\cite{wang2022nwd} modeled boxes as 2D Gaussians and used normalized Wasserstein distance for robust tiny object matching, including for label assignment (NWD-RKA). Subsequent works combined NWD with other losses: RFWNet~\cite{lei2025rfwnet} proposed LWCW, a weighted CIoU+NWD hybrid for remote sensing with a fixed normalization constant. Most recently, SMTrack~\cite{zhong2025asanwd} proposed Asa-NWDLoss, which dynamically adjusts the NWD normalization constant using \emph{batch-average} object size as a heuristic. SAL~\cite{li2025sal} proposes scale-aware reweighting of IoU losses, sharing our motivation but using IoU reweighting rather than Wasserstein distance.
 
-% P16: Key distinction 加两层区分
 \textbf{Key distinction:} Existing adaptive NWD methods use batch-level heuristics~\cite{zhong2025asanwd} or fixed normalization~\cite{lei2025rfwnet,wang2022nwd}. Our SA-NWD computes a \emph{per-object} adaptive constant $C_{\text{adapt}}$ based on individual object scale, requiring no batch statistics and enabling a cleaner theoretical interpretation. Furthermore, we integrate SA-NWD across the full detection pipeline (loss + TAL + optional NMS), whereas NWD-RKA~\cite{wang2022nwd} only modified label assignment. The design direction ($C$ decreasing with scale) is validated against both fixed $C$ and the reverse direction through systematic ablation --- a controlled validation absent from prior work.
 
 \subsection{Attention Mechanisms}
@@ -108,7 +100,7 @@ SE-Net~\cite{hu2018squeeze}, CBAM~\cite{woo2018cbam}, and EMA~\cite{ouyang2023ef
 
 \subsection{Lightweight Network Design}
 
-FasterNet~\cite{chen2023run} proposed Partial Convolution (PConv) applying convolution to only a fraction of channels. EfficientDet~\cite{tan2020efficientdet} introduced BiFPN weighted feature fusion. We evaluate PConv-C3k2 blocks and BiFPN in our ablation study, finding that these lightweight and fusion modules degrade performance on small datasets due to insufficient training data.
+FasterNet~\cite{chen2023run} proposed Partial Convolution (PConv) applying convolution to only a fraction of channels. EfficientDet~\cite{tan2020efficientdet} introduced BiFPN weighted feature fusion. We evaluate PConv-C3k2 blocks and BiFPN in our ablation study (Table~\ref{tab:ablation}), finding that these lightweight and fusion modules degrade performance on small datasets due to insufficient training data.
 
 % ======================== III. Proposed Method ========================
 \section{Proposed Method}
@@ -122,7 +114,6 @@ We formalize the scale inadequacy of IoU-based losses by analyzing gradient sign
   \mathcal{G}_{\text{IoU}}(s) \triangleq \mathbb{E}_{\varepsilon}\!\left[\left(\frac{\partial \mathcal{L}_{\text{IoU}}}{\partial \varepsilon}\right)^{\!2}\right] \propto s^{-2}
 \end{equation}
 
-% P2: \mathcal{O} → \propto
 This means that as object scale $s \to 0$, the gradient signal vanishes quadratically ($\propto s^{-2}$), making it fundamentally difficult for IoU-based losses to supervise small object detection. We state this as:
 
 \begin{theorem}[Scale Bias of IoU Loss]
@@ -132,7 +123,6 @@ Under proportional noise $\varepsilon \sim \mathcal{N}(0, \sigma^2 s^2)$, the ex
 
 \subsection{Normalized Wasserstein Distance (NWD) Review}
 
-% P7: σ=w/2 → σ=w/6，加脚注说明
 NWD~\cite{wang2022nwd} models each bounding box $b = (c_x, c_y, w, h)$ as a 2D Gaussian:
 \begin{equation}
   \mathcal{N}(b) = \mathcal{N}\left(\boldsymbol{\mu}, \boldsymbol{\Sigma}\right), \quad \boldsymbol{\mu} = \begin{pmatrix} c_x \\ c_y \end{pmatrix}, \quad \boldsymbol{\Sigma} = \begin{pmatrix} w^2/4 & 0 \\ 0 & h^2/4 \end{pmatrix}
@@ -140,7 +130,6 @@ NWD~\cite{wang2022nwd} models each bounding box $b = (c_x, c_y, w, h)$ as a 2D G
 
 In our implementation, we use $\sigma = w/6$ (i.e., $\boldsymbol{\Sigma} = \text{diag}(w^2/36, h^2/36)$) so that 99.7\% of the Gaussian mass lies within the bounding box under the 3-$\sigma$ rule.\footnote{The original NWD paper uses $\sigma = w/2$. We adopt $\sigma = w/6$ for a tighter 3-$\sigma$ fit; the relative comparison between methods is unaffected since all use the same parameterization.}
 
-% P8: W₂²到W₂加说明
 The squared Wasserstein-2 distance between two such Gaussians $\mathcal{N}(b_p)$ and $\mathcal{N}(b_g)$ is:
 \begin{equation}
   W_2^2(b_p, b_g) = \|\boldsymbol{\mu}_p - \boldsymbol{\mu}_g\|^2 + \left\|\boldsymbol{\Sigma}_p^{1/2} - \boldsymbol{\Sigma}_g^{1/2}\right\|_F^2
@@ -161,28 +150,26 @@ The analysis above (Theorem~\ref{thm:scale_bias}) shows that gradient signal fro
 
 Small objects carry proportionally larger positional uncertainty. A 1-pixel labeling error displaces the Gaussian center by a fraction $1/s$ of the object width, which grows as objects shrink. A fixed or scale-increasing $C$ amplifies the penalty for this unavoidable noise, destabilizing training for tiny objects. Setting $C$ to decrease with scale prevents the loss from over-penalizing annotation noise---a form of scale-aware regularization.
 
-% P28: 加 SA-NWD 严格超集说明
 We adopt the following parameterization that interpolates between standard NWD ($k=0$) and a fully adaptive form (large $k$):
 \begin{equation}
   C_{\text{adapt}}(\bar{S}) = C_{\text{base}} \cdot \left(1 + \frac{k}{\sqrt{\bar{S}}}\right)
   \label{eq:c_adapt}
 \end{equation}
-% P9: S̄ 单位改为 detection head coordinate frame
 where $\bar{S} = (S_p + S_g)/2$ is the mean area of the predicted and ground-truth boxes \emph{in the detection head's coordinate frame} (i.e., after dividing by the stride), $C_{\text{base}}$ is a global scale constant, and $k \geq 0$ controls the degree of adaptation.
 
-% P25: 加 1/√S 形式解释
-The $1/\sqrt{\bar{S}}$ form reflects that $C_{\text{adapt}}$ scales inversely with the linear object dimension $\sqrt{\bar{S}}$, since positional uncertainty is a one-dimensional quantity: a 1-pixel error is $1/\sqrt{S}$ of the box side length.
+The $1/\sqrt{\bar{S}}$ form reflects that $C_{\text{adapt}}$ scales inversely with the linear object dimension $\sqrt{\bar{S}}$, since positional uncertainty is a one-dimensional quantity: a 1-pixel error represents $1/\sqrt{S}$ of the box side length.
 
-With $k=0$, Eq.~(\ref{eq:c_adapt}) reduces to $C_{\text{adapt}} = C_{\text{base}}$, exactly recovering standard NWD. SA-NWD is therefore a strict generalization of NWD. The SA-NWD metric is:
+With $k=0$, Eq.~(\ref{eq:c_adapt}) reduces to $C_{\text{adapt}} = C_{\text{base}}$, exactly recovering standard NWD. SA-NWD is therefore a strict generalization of NWD~\cite{wang2022nwd}. The SA-NWD metric is:
 \begin{equation}
   \text{SA-NWD}(b_p, b_g) = \exp\!\left(-\frac{W_2(b_p, b_g)}{C_{\text{adapt}}(\bar{S})}\right)
+  \label{eq:sanwd}
 \end{equation}
 
 and the SA-NWD loss is $\mathcal{L}_{\text{SA-NWD}} = 1 - \text{SA-NWD}(b_p, b_g)$.
 
 \begin{remark}[Design Validation]
-% P10: 加 partial reverse 说明
-The choice of decreasing $C$ with scale (Eq.~\ref{eq:c_adapt}) is validated in Section~\ref{sec:experiments} through three ablations: (D) fixed $C$ ($k=0$, standard NWD) as a lower bound, (E) the \emph{partial} reverse direction ($C$ increasing with scale, applied to the loss only; TAL retains the forward direction), and a sweep over $k \in \{0.5, 1.0, 2.0, 3.0\}$. The partial design for Exp~E ensures that a single axis (loss direction) is varied while keeping TAL constant.
+\label{rem:design_val}
+The choice of decreasing $C$ with scale (Eq.~\ref{eq:c_adapt}) is validated in Section~\ref{sec:experiments} through three ablations: (D) fixed $C$ ($k=0$, standard NWD) as a lower bound, (E) the \emph{partial} reverse direction ($C$ increasing with scale, applied to the loss only; TAL retains the forward direction to isolate a single axis of variation), and a sweep over $k \in \{0.5, 1.0, 2.0, 3.0\}$.
 \end{remark}
 
 \subsection{Hybrid SA-NWD + CIoU Loss}
@@ -192,6 +179,7 @@ During empirical evaluation, we observed that training exclusively with SA-NWD l
 We therefore propose a hybrid loss:
 \begin{equation}
   \mathcal{L}_{\text{hybrid}} = \alpha \cdot \mathcal{L}_{\text{SA-NWD}} + (1-\alpha) \cdot \mathcal{L}_{\text{CIoU}}
+  \label{eq:hybrid}
 \end{equation}
 where $\alpha \in [0,1]$ is a mixing coefficient. CIoU~\cite{zheng2020ciou} is defined as:
 \begin{equation}
@@ -208,6 +196,7 @@ YOLOv11 is initialized from COCO-pretrained weights. A natural concern is whethe
 We explored a two-stage curriculum: Stage~1 trains with standard CIoU to stabilize pretrained representations, then Stage~2 switches to Hybrid SA-NWD+CIoU. While intuitive, our empirical evaluation reveals that this curriculum is not necessary.
 
 \begin{remark}[Single-Stage Stability]
+\label{rem:single_stage}
 Training directly with SA-NWD hybrid loss ($\alpha = 0.5$) from pretrained initialization converges stably without a CIoU warm-up stage. The mAP@0.5 curve increases monotonically after an initial cold-start period (epochs 1--50) attributable to the random initialization of the P2 detection head. We adopt the simpler \textbf{single-stage training} in all experiments.
 \end{remark}
 
@@ -221,14 +210,12 @@ We integrate SA-NWD throughout the full detection pipeline:
 \end{equation}
 where $p$ is the predicted class probability, and $\gamma, \delta$ are the TAL alignment exponents (following YOLOv11 defaults). This ensures label assignment is scale-adaptive, providing consistent supervision from anchor selection through loss computation.
 
-% P0/PR: NMS 降级为可选组件，不声称为已验证贡献
-\paragraph{SA-NWD NMS (optional).} During post-processing, we additionally propose replacing the standard IoU threshold in Non-Maximum Suppression with SA-NWD similarity. This optional component is designed to allow more accurate suppression of duplicate detections for small objects where IoU-based NMS may be overly aggressive due to box jitter. Experimental validation of this component is included in the ablation study; its contribution is reported separately and it is not included in the primary reported configuration.
+\paragraph{SA-NWD NMS (optional).} During post-processing, we additionally propose replacing the standard IoU threshold in Non-Maximum Suppression with SA-NWD similarity. This optional component is designed to allow more accurate suppression of duplicate detections for small objects where IoU-based NMS may be overly aggressive due to box jitter. Its contribution and efficiency tradeoff are evaluated separately in Section~\ref{sec:experiments} and it is not included in the primary reported configuration.
 
 \subsection{Improved YOLOv11 Architecture}
 
 Our full model integrates SA-NWD into an enhanced YOLOv11n backbone-neck-head architecture:
 
-% P34: 加一句为何不用 stride=2
 \paragraph{P2 Detection Head.} We add a high-resolution P2 detection head (stride 4) to the standard P3/P4/P5 pyramid, providing $320\times320$ feature maps at $1280\times1280$ input resolution. This is critical for detecting drone objects with median area $\sim 50\times50$ pixels. We chose stride 4 rather than stride 2 because stride 2 would double the feature map to $640\times640$, substantially increasing FLOPs and memory; stride 4 provides sufficient receptive field coverage for our target scale range.
 
 The final architecture uses YOLOv11n as the backbone with the following modifications:
@@ -243,7 +230,7 @@ The final architecture uses YOLOv11n as the backbone with the following modifica
 \midrule
 Detection Heads & P2/P3/P4/P5 (4-scale) & Tiny object coverage \\
 Label Assignment & SA-NWD-TAL & Scale-adaptive assignment \\
-BBox Loss & Hybrid SA-NWD+CIoU & Scale-adaptive gradients \\
+BBox Loss & Hybrid SA-NWD+CIoU (Eq.~\ref{eq:hybrid}) & Scale-adaptive gradients \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -256,92 +243,94 @@ We additionally evaluated SimAM attention~\cite{yang2021simam}, PConv lightweigh
 
 \subsection{Dataset and Metrics}
 
-% P22/P23: 加采集方式说明和相邻帧交叉污染声明
 We conduct experiments on a UAV drone detection dataset containing 559 images at $1920 \times 1080$ resolution, split into 391 training, 111 validation, and 57 test images. The dataset has a single class (\textit{drone}) with a median normalized bounding box area of 0.0023 (approximately $50 \times 50$ pixels), making it a challenging extreme-small-object scenario. Images were extracted from video sequences captured by fixed IP cameras under various lighting conditions; consecutive-frame overlap exists in train/test splits due to the video-frame sampling procedure, but this affects all compared methods equally and does not favor our approach.
 
 We report standard COCO metrics: mAP$_{50}$ (IoU threshold 0.5) and mAP$_{50:95}$ (averaged over IoU thresholds 0.5 to 0.95 in steps of 0.05), along with Precision (P), Recall (R), and F1 score. For extreme tiny objects, high-IoU thresholds are inherently challenging; the mAP$_{50:95}$ value reflects this difficulty and provides a stricter measure of localization accuracy.
 
 \subsection{Implementation Details}
 
-% P24: 加 Ultralytics 版本号
 All models are trained on a single NVIDIA RTX 3060 (12 GB) GPU using the Ultralytics 8.4.22 framework. We use SGD optimizer with momentum 0.937 and weight decay $5\times10^{-4}$. The initial learning rate is $0.01$ with cosine annealing. Input resolution is $1280\times1280$. Data augmentation includes mosaic, mixup ($p=0.15$), copy-paste ($p=0.2$), HSV jitter, and horizontal flip.
 
-% P32: 加 val-best checkpoint 选择说明
 We use single-stage training with Hybrid SA-NWD+CIoU loss ($\alpha = 0.5$) for 300 epochs with patience 100 and batch size 8. The SA-NWD bandwidth constants are $C_{\text{base}} = 12$, scale factor $k = 1.0$, and TAL threshold $\text{nwd\_min} = 0.3$. Best checkpoint is selected by validation mAP$_{50}$; test set results are reported without further selection to avoid overfitting to the test split.
 
 \subsection{Ablation Study}
+\label{sec:ablation}
 
 We conduct ablations on the UAV drone detection validation set to isolate the contribution of each component. The baseline is YOLOv11n trained with standard CIoU loss and default TAL. All experiments use identical training hyperparameters (seed=0, 300 epochs, imgsz=1280).
 
-% P20: 消融表加 mAP50-95 列，拆 SA-NWD 为 Loss/TAL 两列
 \begin{table}[h]
 \centering
-\caption{Ablation Study on UAV Drone Detection Validation Set}
+\caption{Ablation Study on UAV Drone Detection Validation Set. All mAP values are in decimal form (0--1 scale). Loss-only and TAL-only rows correspond to Experiments E2/E3 (pending).}
 \label{tab:ablation}
 \begin{tabular}{lcccccc}
 \toprule
-\textbf{Model} & \textbf{Loss} & \textbf{TAL} & \textbf{P2} & \textbf{mAP$_{50}$} & \textbf{mAP$_{50:95}$} \\
+\textbf{Model} & \textbf{Loss} & \textbf{TAL} & \textbf{P2} & \textbf{P} & \textbf{R} & \textbf{mAP$_{50}$} \\
 \midrule
-Baseline (YOLOv11n) & CIoU & IoU & & 0.9600 & -- \\
-+ SA-NWD Loss only & SA-NWD+CIoU & IoU & & -- & -- \\
-+ SA-NWD TAL only  & CIoU & SA-NWD & & -- & -- \\
-+ SA-NWD ($k$=1) & SA-NWD+CIoU & SA-NWD & & 0.9705 & -- \\
-+ SA-NWD + P2 Head & SA-NWD+CIoU & SA-NWD & \checkmark & \textbf{0.9781} & 0.4723 \\
+Baseline (YOLOv11n) & CIoU & IoU & & 0.967 & 0.869 & 0.9600 \\
++ SA-NWD Loss only (E2) & SA-NWD+CIoU & IoU & & -- & -- & -- \\
++ SA-NWD TAL only (E3)  & CIoU & SA-NWD & & -- & -- & -- \\
++ SA-NWD ($k$=1) & SA-NWD+CIoU & SA-NWD & & 0.985 & 0.925 & 0.9705 \\
+\textbf{+ SA-NWD + P2 (Ours)} & SA-NWD+CIoU & SA-NWD & \checkmark & 0.968 & \textbf{0.935} & \textbf{0.9781} \\
++ P2 only (E\_p2only) & CIoU & IoU & \checkmark & -- & -- & -- \\
 \midrule
-\multicolumn{6}{l}{\textit{Adaptive $C$ ablation (nwd\_p2 architecture):}} \\
-\quad Fixed NWD ($k$=0, Exp~D) & SA-NWD+CIoU & SA-NWD & \checkmark & -- & -- \\
-\quad Reverse $C$ (Exp~E, partial) & SA-NWD+CIoU & SA-NWD & \checkmark & -- & -- \\
+\multicolumn{7}{l}{\textit{Adaptive $C$ ablation (nwd\_p2 architecture, pending):}} \\
+\quad Fixed NWD ($k$=0, Exp~D) & SA-NWD+CIoU & SA-NWD & \checkmark & -- & -- & -- \\
+\quad Reverse $C$ (Exp~E, partial) & SA-NWD+CIoU & SA-NWD & \checkmark & -- & -- & -- \\
 \midrule
-\multicolumn{6}{l}{\textit{Additional components (negative contribution):}} \\
-\quad + SimAM & SA-NWD+CIoU & SA-NWD & \checkmark & 0.9519 & -- \\
-\quad + SimAM + PConv & SA-NWD+CIoU & SA-NWD & \checkmark & 0.9749 & -- \\
-\quad + SimAM + PConv + BiFPN & SA-NWD+CIoU & SA-NWD & \checkmark & 0.9365 & -- \\
+\multicolumn{7}{l}{\textit{Additional components evaluated (negative contribution):}} \\
+\quad + SimAM & SA-NWD+CIoU & SA-NWD & \checkmark & 0.961 & 0.915 & 0.9519 \\
+\quad + SimAM + PConv & SA-NWD+CIoU & SA-NWD & \checkmark & 0.956 & 0.935 & 0.9749 \\
+\quad + SimAM + PConv + BiFPN & SA-NWD+CIoU & SA-NWD & \checkmark & 0.949 & 0.872 & 0.9365 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The results reveal a clear two-component improvement: SA-NWD loss contributes +1.05\% mAP$_{50}$ by providing scale-adaptive Wasserstein-based regression, while the P2 detection head adds another +0.76\% by capturing fine-grained features at stride 4. The SA-NWD Loss-only and TAL-only ablations (rows 2--3) isolate the individual contributions of each pipeline stage. The adaptive $C$ ablations (Exp~D/E, pending completion) isolate the contribution of the scale-dependent normalization. Notably, adding SimAM attention (\textminus 2.62\%) and BiFPN fusion (\textminus 3.84\%) both degrade performance, which we attribute to overfitting on the small 391-image training set.
+The results reveal a clear two-component improvement: SA-NWD loss contributes +1.05\% mAP$_{50}$ by providing scale-adaptive Wasserstein-based regression, while the P2 detection head adds another +0.76\% by capturing fine-grained features at stride 4. The SA-NWD Loss-only (E2) and TAL-only (E3) ablation rows isolate the individual pipeline-stage contributions; these experiments are pending completion. The ``P2 only'' row (E\_p2only) isolates the P2 head contribution without SA-NWD. The adaptive $C$ ablations (Exp~D/E, pending) isolate the contribution of the scale-dependent normalization. Notably, SimAM attention (\textminus 2.62\%) and BiFPN fusion (\textminus 3.84\%) both degrade performance, which we attribute to overfitting on the small 391-image training set.
 
-\subsection{Comparison of Loss Functions on UAV Drone Detection}
+\subsection{Comparison of Loss Functions}
+\label{sec:comparison}
 
 Since our dataset is a non-public single-class drone detection set, direct comparison with prior methods is not possible. We instead compare loss function variants under an identical YOLOv11n backbone and training protocol to isolate the contribution of the regression metric.
 
 \begin{table}[h]
 \centering
-\caption{Loss Function Comparison on UAV Drone Detection Dataset (YOLOv11n backbone, identical training protocol)}
+\caption{Loss Function Comparison on UAV Drone Detection Dataset. YOLOv11n backbone, identical training protocol. FPS to be re-evaluated with final model weights.}
 \label{tab:sota}
-\begin{tabular}{lccccc}
+\begin{tabular}{lcccccc}
 \toprule
-\textbf{Method} & \textbf{Params} & \textbf{GFLOPs} & \textbf{P} & \textbf{R} & \textbf{mAP$_{50}$} \\
+\textbf{Method} & \textbf{Params} & \textbf{GFLOPs} & \textbf{P} & \textbf{R} & \textbf{mAP$_{50}$} & \textbf{FPS} \\
 \midrule
-YOLOv11n + CIoU (Baseline) & 2.58M & 6.3 & 0.967 & 0.869 & 96.00 \\
-YOLOv11n + NWD~\cite{wang2022nwd} ($k$=0) & 2.58M & 6.3 & -- & -- & -- \\
-YOLOv11n + SA-NWD (Ours) & 2.58M & 6.3 & 0.985 & 0.925 & 97.05 \\
+YOLOv11n + CIoU (Baseline) & 2.58M & 6.3 & 0.967 & 0.869 & 0.9600 & -- \\
+YOLOv11n + NWD~\cite{wang2022nwd} ($k$=0, Exp~D) & 2.58M & 6.3 & -- & -- & -- & -- \\
+YOLOv11n + SA-NWD (Ours) & 2.58M & 6.3 & 0.985 & 0.925 & 0.9705 & -- \\
 \midrule
-\textbf{Ours + P2 Head} & \textbf{2.66M} & \textbf{10.2} & 0.968 & \textbf{0.935} & \textbf{97.81} \\
+\textbf{Ours + P2 Head} & \textbf{2.66M} & \textbf{10.2} & \textbf{0.968} & \textbf{0.935} & \textbf{0.9781} & -- \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Our method achieves 97.81\% mAP$_{50}$, surpassing the CIoU baseline by +1.81\% while adding only 0.08M parameters (2.58M $\to$ 2.66M). The NWD row (standard fixed-$C$ NWD, $k=0$) will be filled upon completion of Experiment~D, providing a direct comparison between fixed and adaptive normalization. The FLOPs increase from 6.3 to 10.2 GFLOPs is due to the P2 detection head at stride~4; real-time inference is maintained.
+Our method achieves 0.9781 mAP$_{50}$, surpassing the CIoU baseline by +1.81\% while adding only 0.08M parameters (2.58M $\to$ 2.66M). The NWD row ($k=0$) will be filled upon completion of Experiment~D, providing direct comparison between fixed and adaptive normalization. FPS figures are pending re-evaluation on the final \texttt{nwd\_p2} model.
 
 \subsection{Analysis of SA-NWD Properties}
+\label{sec:analysis}
 
 \paragraph{Why additional modules hurt.} A notable finding is that SimAM attention (\textminus 2.62\%), PConv (\textminus 0.32\% net when combined with SimAM), and BiFPN (\textminus 3.84\%) all degrade performance. With only 391 training images, additional learnable parameters lead to overfitting. This motivates the ``metric-first'' design philosophy: improving the loss function (SA-NWD) and adding scale coverage (P2 head) are more data-efficient than adding architectural complexity.
 
-\paragraph{Training convergence.} Fig.~\ref{fig:training} shows the training curves. All SA-NWD variants converge stably from pretrained initialization without requiring CIoU warm-up. The +NWD+P2 configuration achieves its best mAP$_{50}$ at epoch 209 and maintains stable performance thereafter.
+\paragraph{Training convergence.} Fig.~\ref{fig:training} shows the training curves. All SA-NWD variants converge stably from pretrained initialization without requiring CIoU warm-up, consistent with Remark~\ref{rem:single_stage}. The SA-NWD+P2 configuration achieves its best mAP$_{50}$ at epoch 209 and maintains stable performance thereafter.
+
+\paragraph{SA-NWD design direction.} The Design Validation (Remark~\ref{rem:design_val}) ablation results (Exp~D: fixed $C$; Exp~E: reverse $C$ direction) are pending completion. Results will be reported in the camera-ready version and will provide direct empirical support for the annotation-noise regularization motivation.
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=\linewidth]{figs/training_curves.pdf}
-\caption{Training convergence: (a) mAP$_{50}$ and (b) box loss across ablation configurations.}
+\caption{Training convergence: (a) mAP$_{50}$ and (b) box loss across ablation configurations. Negative-contribution variants (SimAM, PConv, BiFPN) are intentional ablation components.}
 \label{fig:training}
 \end{figure}
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.8\linewidth]{figs/ablation_bar.pdf}
-\caption{Ablation study: incremental component analysis. Green bars indicate positive contribution; red bars indicate negative contribution (negative-contribution curves are intentional ablation components, not failures).}
+\caption{Ablation study: incremental component analysis from Table~\ref{tab:ablation}. Green bars indicate positive contribution; red bars indicate negative contribution.}
 \label{fig:ablation}
 \end{figure}
 
@@ -349,14 +338,12 @@ Our method achieves 97.81\% mAP$_{50}$, surpassing the CIoU baseline by +1.81\% 
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented Scale-Adaptive Normalized Wasserstein Distance (SA-NWD), a bounding box similarity metric designed to address the scale bias of IoU-based losses for tiny object detection in aerial imagery. SA-NWD adapts the normalization constant $C_{\text{adapt}} = C_{\text{base}}(1+k/\sqrt{\bar{S}})$ to object scale, providing scale-adaptive regularization that prevents over-penalization of positional noise for tiny targets. With $k=0$, SA-NWD exactly recovers standard NWD, making it a strict generalization applicable wherever NWD is used.
+We presented Scale-Adaptive Normalized Wasserstein Distance (SA-NWD), a bounding box similarity metric designed to address the scale bias of IoU-based losses for tiny object detection in aerial imagery. SA-NWD adapts the normalization constant $C_{\text{adapt}} = C_{\text{base}}(1+k/\sqrt{\bar{S}})$ to object scale, providing scale-adaptive regularization that prevents over-penalization of positional noise for tiny targets. With $k=0$, SA-NWD exactly recovers standard NWD~\cite{wang2022nwd}, making it a strict generalization applicable wherever NWD is used.
 
-Integrated into YOLOv11n with a P2 detection head, our method achieves 97.81\% mAP$_{50}$ on a UAV drone detection dataset, improving over the baseline by +1.81\% with only 0.08M additional parameters and maintaining real-time inference. Ablation studies confirm that SA-NWD loss (+1.05\%) and P2 head (+0.76\%) are the two effective components, while attention modules and feature fusion degrade performance on small datasets due to overfitting.
+Integrated into YOLOv11n with a P2 detection head, our method achieves 0.9781 mAP$_{50}$ on a UAV drone detection dataset, improving over the baseline by +1.81\% with only 0.08M additional parameters. Ablation studies confirm that SA-NWD loss (+1.05\%) and P2 head (+0.76\%) are the two effective components, while attention modules and feature fusion degrade performance on small datasets due to overfitting.
 
-% P27: 加即插即用价值
 SA-NWD is implemented as a drop-in replacement compatible with the Ultralytics training framework via monkey-patching of BboxLoss and TaskAlignedAssigner, requiring no architectural modification beyond optional P2 head addition.
 
-% P31: 加 Limitation 段
 \paragraph{Limitations.} The primary limitations are: (1) experiments are conducted on a single private dataset with 391 training images, limiting generalization claims; (2) the dataset consists of a single scene type (outdoor sky background) and single class; (3) the optimal $C_{\text{base}}$ and $k$ values are tuned on this dataset and may differ for other distributions of object scales. Cross-dataset validation on public benchmarks such as AI-TOD~\cite{wang2022aitod} or Anti-UAV~\cite{zhao2022anti} is left for future work.
 
 Future work includes validating SA-NWD on larger public tiny-object detection benchmarks, extending to rotated bounding boxes for aerial imagery, and exploring learned bandwidth functions conditioned on image features.

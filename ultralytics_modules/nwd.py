@@ -117,7 +117,7 @@ def nwd(box1, box2, eps=1e-7, constant=12.0):
 # ============================================================
 
 def sa_nwd_loss(pred_bboxes, target_bboxes, weight, target_scores_sum,
-                c_base=12.0, k=2.0, eps=1e-7):
+                c_base=12.0, k=1.0, eps=1e-7):
     """SA-NWD-based bounding box regression loss.
 
     Args:
@@ -369,9 +369,11 @@ def patch_all_nwd(c_base=12.0, k=1.0, alpha=0.5, use_sa=True, use_nwd_nms=False,
         patch_sa_nwd_tal(c_base=c_base, k=0.0, nwd_min=nwd_min)
 
     if use_nwd_nms:
+        # When use_sa=False, NMS also uses k=0 (standard NWD) to be consistent
+        nms_k = k if use_sa else 0.0
         patch_nwd_nms(iou_threshold=nms_iou_threshold,
                       nwd_threshold=nms_nwd_threshold,
-                      c_base=c_base, k=k)
+                      c_base=c_base, k=nms_k)
 
 
 # ============================================================
