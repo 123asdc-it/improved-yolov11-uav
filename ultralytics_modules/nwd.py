@@ -377,3 +377,78 @@ def patch_nwd_loss(constant=12.0, alpha=1.0):
 def patch_nwd_tal(constant=12.0):
     """Patch TAL with standard NWD (fixed constant)."""
     patch_sa_nwd_tal(c_base=constant, k=0.0)
+
+
+# ============================================================
+# Scale-Aware Loss Weighting (Fisher-Guided)
+# ============================================================
+
+def patch_scale_aware_loss(ref_area=0.002, max_scale=2.0, min_scale=0.5):
+    """Patch BboxLoss with Scale-Aware CIoU loss.
+
+    Directly derived from Fisher information analysis:
+      I_IoU(s) \u221d 1/s^2  =>  gradient signal vanishes for small objects
+
+    Optimal compensation: w(s) = sqrt(ref_area / s)
+    This equalizes the effective gradient magnitude across all object scales.
+
+    Args:
+        ref_area: Reference (median) normalized object area. Default 0.002
+                  (~50x50 pixels in 1920x1080, normalized to [0,1]).
+        max_scale: Maximum weight multiplier (prevents extreme amplification).
+        min_scale: Minimum weight multiplier (prevents suppression of large objects).
+    """
+    try:
+        from ultralytics.utils.loss import BboxLoss
+        from ultralytics.utils.tal import bbox2dist
+        from ultralytics.utils.metrics import bbox_iou
+
+        def _patched_forward(self, pred_dist, pred_bboxes, anchor_points,
+                             target_bboxes, target_scores, target_scores_sum,
+                             fg_mask, imgsz, stride):
+            """Scale-Aware CIoU loss with Fisher-compensation weighting."""
+            weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
+
+            # Compute scale-aware weight: w(s) = sqrt(ref_area / s)
+            tb = target_bboxes[fg_mask]
+            img_area = float(imgsz[0]) * float(imgsz[1]) + 1e-8
+            gt_areas = ((tb[:, 2] - tb[:, 0]) * (tb[:, 3] - tb[:, 1])) / img_area
+            scale_w = torch.sqrt(
+                torch.tensor(ref_area, dtype=tb.dtype, device=tb.device) /
+                gt_areas.clamp(min=1e-6)
+            ).clamp(min=min_scale, max=max_scale)
+            weight = weight * scale_w.unsqueeze(-1)
+
+            # CIoU loss with scale-aware weight
+            ciou = bbox_iou(pred_bboxes[fg_mask], tb, xywh=False, CIoU=True)
+            loss_iou = ((1.0 - ciou).unsqueeze(-1) * weight).sum() / target_scores_sum
+
+            # DFL loss (unchanged)
+            if self.dfl_loss:
+                target_ltrb = bbox2dist(anchor_points, target_bboxes,
+                                        self.dfl_loss.reg_max - 1)
+                loss_dfl = self.dfl_loss(
+                    pred_dist[fg_mask].view(-1, self.dfl_loss.reg_max),
+                    target_ltrb[fg_mask]
+                ) * weight
+                loss_dfl = loss_dfl.sum() / target_scores_sum
+            else:
+                target_ltrb = bbox2dist(anchor_points, target_bboxes)
+                target_ltrb = target_ltrb * stride
+                target_ltrb[..., 0::2] /= imgsz[1]
+                target_ltrb[..., 1::2] /= imgsz[0]
+                pred_dist_s = pred_dist * stride
+                pred_dist_s[..., 0::2] /= imgsz[1]
+                pred_dist_s[..., 1::2] /= imgsz[0]
+                import torch.nn.functional as F
+                loss_dfl = (
+                    F.l1_loss(pred_dist_s[fg_mask], target_ltrb[fg_mask],
+                              reduction='none').mean(-1, keepdim=True) * weight
+                ).sum() / target_scores_sum
+
+            return loss_iou, loss_dfl
+
+        BboxLoss.forward = _patched_forward
+        print(f"\u2713 Scale-Aware CIoU loss applied (ref_area={ref_area}, scale=[{min_scale},{max_scale}])")
+    except Exception as e:
+        print(f"\u26a0 Scale-Aware loss patch failed: {e}")

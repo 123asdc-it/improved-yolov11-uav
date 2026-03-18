@@ -1,6 +1,10 @@
-# YOLOv11n-Improved: 无人机小目标检测优化版
-# 改进: P2小目标检测头 + SimAM零参数注意力 + PConv轻量化 + BiFPN加权融合
-# 训练时需配合 NWD loss + NWD-TAL patch
+# YOLOv11n-Improved (Fisher-Guided): 无人机小目标检测优化版
+# 架构改进均从 Fisher 信息分析推导：
+#   1. P2 小目标检测头 (stride=4)  — 小目标特征分辨率不足
+#   2. SimAM 零参数注意力           — 小目标特征判别性差
+#   3. PConv 轻量化                 — 补偿 P2 头的额外计算代价
+# 训练时配合：Scale-Aware CIoU loss + SA-NWD (P2 only)
+# 注：消融实验显示 BiFPN 在本任务为负贡献 (0.9373 < 0.9666)，已移除
 
 nc: 1
 scales:
@@ -23,33 +27,33 @@ backbone:
   - [-1, 1, SPPF, [1024, 5]]           # 11      → 256ch
   - [-1, 2, C2PSA, [1024]]             # 12      → 256ch
 
-# Head: P2 detection + PConv + BiFPN
+# Head: P2 detection + PConv (no BiFPN — ablation shows negative contribution)
 # Top-down: P5→P4→P3→P2, then Bottom-up: P2→P3→P4→P5
 head:
   # --- Top-down path ---
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]  # 13      → 256ch (P4 size)
-  - [[-1, 8], 1, BiFPN_Concat, [1]]              # 14 ★BiFPN → 256+128=384ch
+  - [[-1, 8], 1, Concat, [1]]                    # 14      → 256+128=384ch
   - [-1, 2, PConv_C3k2, [512]]                   # 15 ★PConv → 128ch
 
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]   # 16      → 128ch (P3 size)
-  - [[-1, 5], 1, BiFPN_Concat, [1]]               # 17 ★BiFPN → 128+128=256ch
+  - [[-1, 5], 1, Concat, [1]]                     # 17      → 128+128=256ch
   - [-1, 2, PConv_C3k2, [256]]                    # 18 ★PConv → 64ch  (P3/8)
 
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]    # 19      → 64ch (P2 size)
-  - [[-1, 2], 1, BiFPN_Concat, [1]]                # 20 ★BiFPN → 64+64=128ch
+  - [[-1, 2], 1, Concat, [1]]                      # 20      → 64+64=128ch
   - [-1, 2, PConv_C3k2, [128]]                     # 21 ★PConv → 32ch  (P2/4) ★P2检测头
 
   # --- Bottom-up path ---
   - [-1, 1, Conv, [128, 3, 2]]                     # 22      → 32ch
-  - [[-1, 18], 1, BiFPN_Concat, [1]]               # 23 ★BiFPN → 32+64=96ch
+  - [[-1, 18], 1, Concat, [1]]                     # 23      → 32+64=96ch
   - [-1, 2, PConv_C3k2, [256]]                     # 24 ★PConv → 64ch  (P3/8)
 
   - [-1, 1, Conv, [256, 3, 2]]                     # 25      → 64ch
-  - [[-1, 15], 1, BiFPN_Concat, [1]]               # 26 ★BiFPN → 64+128=192ch
+  - [[-1, 15], 1, Concat, [1]]                     # 26      → 64+128=192ch
   - [-1, 2, PConv_C3k2, [512]]                     # 27 ★PConv → 128ch (P4/16)
 
   - [-1, 1, Conv, [512, 3, 2]]                     # 28      → 128ch
-  - [[-1, 12], 1, BiFPN_Concat, [1]]               # 29 ★BiFPN → 128+256=384ch
+  - [[-1, 12], 1, Concat, [1]]                     # 29      → 128+256=384ch
   - [-1, 2, C3k2, [1024, True]]                    # 30      → 256ch (P5/32)
 
   - [[21, 24, 27, 30], 1, Detect, [nc]]            # 31 Detect(P2, P3, P4, P5)
