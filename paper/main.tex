@@ -72,10 +72,11 @@ To address these challenges, we propose:
 The main contributions are:
 
 \begin{itemize}
-  \item We theoretically prove that IoU loss Fisher information vanishes for small objects ($\propto s^{-2}$), and derive SA-NWD as the unique Fisher-equivariant solution.
-  \item We propose a Hybrid SA-NWD+CIoU loss with Two-Stage Training that achieves stable convergence and superior small object accuracy.
-  \item We integrate SA-NWD into a full detection pipeline (TAL + loss + NMS) with an improved YOLOv11 architecture (P2 head, SimAM, PConv, BiFPN).
-  \item Comprehensive experiments validate our approach, with ablation studies confirming each component's contribution.
+  \item \textbf{Theoretical foundation}: We formally prove $\mathcal{I}_{\text{IoU}}(s) \propto s^{-2}$, establishing the first information-theoretic explanation for IoU gradient vanishing on small objects. Prior works only empirically noted this~\cite{liu2023powerful}.
+  \item \textbf{SA-NWD}: We derive the unique Fisher-equivariant normalization $C^*(s) \propto 1/\sqrt{s}$ analytically. Unlike the concurrent heuristic of~\cite{zhong2025asanwd} (batch-average statistics), our adaptive constant follows from optimality theory.
+  \item \textbf{Full-pipeline SA-NWD}: SA-NWD is integrated into label assignment (SA-NWD-TAL, extending~\cite{feng2021tood}), regression loss (Hybrid SA-NWD+CIoU, extending~\cite{lei2025rfwnet}), and NMS for a unified scale-equivariant detection framework.
+  \item \textbf{Two-Stage Training}: We identify gradient incompatibility between SA-NWD and pretrained weights, and propose a CIoU-warmup $\to$ SA-NWD curriculum that enables stable training from COCO-pretrained initializations.
+  \item Comprehensive experiments on a UAV aerial dataset validate all contributions via ablation studies.
 \end{itemize}
 
 The rest of this paper is organized as follows: Section~\ref{sec:related} reviews related work. Section~\ref{sec:method} presents the proposed method. Section~\ref{sec:experiments} describes experiments. Section~\ref{sec:conclusion} concludes.
@@ -94,7 +95,11 @@ FPN~\cite{lin2017feature} and PANet~\cite{liu2018path} introduced multi-scale fu
 
 \subsection{IoU Variants and Loss Functions}
 
-GIoU~\cite{rezatofighi2019generalized}, CIoU~\cite{zheng2020ciou}, and DIoU added geometric constraints to improve IoU loss. Inner-IoU~\cite{zhang2023inner} addressed scale sensitivity by using auxiliary boxes. NWD~\cite{wang2022nwd} proposed modeling boxes as Gaussians for scale-robust matching, achieving significant gains on tiny object datasets. Our SA-NWD extends NWD with a theoretically-derived adaptive bandwidth.
+GIoU~\cite{rezatofighi2019generalized}, CIoU~\cite{zheng2020ciou}, and DIoU added geometric constraints to improve IoU loss. Inner-IoU~\cite{zhang2023inner} addressed scale sensitivity using auxiliary boxes. Powerful-IoU~\cite{liu2023powerful} empirically analyzed IoU gradient magnitudes and proposed target-size-adaptive penalties, noting that IoU gradients differ across scales --- but without a formal information-theoretic treatment.
+
+NWD~\cite{wang2022nwd} modeled boxes as 2D Gaussians and used normalized Wasserstein distance for robust tiny object matching, including for label assignment (NWD-RKA). Subsequent works combined NWD with other losses: RFWNet~\cite{lei2025rfwnet} proposed LWCW, a weighted CIoU+NWD hybrid for remote sensing. Most recently, SMTrack~\cite{zhong2025asanwd} proposed Asa-NWDLoss, which dynamically adjusts the NWD normalization constant using batch-average object size as a heuristic. SAL~\cite{li2025sal} proposes scale-aware reweighting of IoU losses, sharing our motivation but using IoU reweighting rather than Wasserstein distance.
+
+\textbf{Key distinction:} All existing adaptive NWD methods use heuristic normalization. Our SA-NWD derives the optimal constant $C^*(s) \propto 1/\sqrt{s}$ analytically from the Fisher-equivariant optimality condition (Theorem~\ref{thm:sa_nwd_optimal}) --- a principled derivation absent from prior work.
 
 \subsection{Attention Mechanisms}
 
@@ -166,6 +171,7 @@ However, incorporating the second-order term from the Wasserstein metric decompo
 \end{equation}
 
 \begin{theorem}[Fisher-Equivariant Bandwidth]
+\label{thm:sa_nwd_optimal}
 Under proportional noise and the Wasserstein-2 metric on Gaussian-modeled boxes, the unique normalization $C^*(s) \propto \sqrt{s}$ achieves Fisher-equivariant detection, i.e., $\mathcal{I}_{\text{SA-NWD}}(s) = \text{const}$.
 \end{theorem}
 
