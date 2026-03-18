@@ -283,7 +283,9 @@ def patch_sa_nwd_tal(c_base=12.0, k=2.0):
             # SA-NWD instead of IoU
             pd_boxes = pd_bboxes.unsqueeze(1).expand(-1, self.n_max_boxes, -1, -1)[mask_gt]
             gt_boxes = gt_bboxes.unsqueeze(2).expand(-1, -1, na, -1)[mask_gt]
-            overlaps[mask_gt] = sa_nwd(pd_boxes, gt_boxes, c_base=c_base, k=k)
+            nwd_scores = sa_nwd(pd_boxes, gt_boxes, c_base=c_base, k=k)
+            nwd_scores = nwd_scores * (nwd_scores >= 0.01).float()  # threshold fix
+            overlaps[mask_gt] = nwd_scores
 
             align_metric = bbox_scores.pow(self.alpha) * overlaps.pow(self.beta)
             return align_metric, overlaps
