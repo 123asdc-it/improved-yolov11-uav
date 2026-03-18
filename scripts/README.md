@@ -33,8 +33,10 @@ python scripts/<脚本名>.py
 |------|------|------|---------|
 | `ablation.py` | 主消融链：6 组实验串行子进程（Baseline→+NWD→+P2→+SimAM→+PConv→Full） | stock→nwd_p2 | ~36h |
 | `run_nwd_fixed.py` | **Exp D**：Fixed NWD k=0，隔离自适应 C 的独立贡献 | nwd_p2 | ~6h |
-| `run_nwd_reverse.py` | **Exp E**：Reverse C（C 随尺度增大），验证 Fisher 理论方向是否有效 | nwd_p2 | ~6h |
+| `run_nwd_reverse.py` | **Exp E**：Reverse C（C 随尺度增大），验证方向选择 | nwd_p2 | ~6h |
 | `run_k_sensitivity.py` | k 超参扫描（k=0.5/2.0/3.0），k=1.0 复用已有 nwd_p2 结果不重跑 | nwd_p2 | ~18h |
+| `run_alpha_0p3.py` | alpha=0.3（0.3×SA-NWD + 0.7×CIoU），验证混合权重影响 | nwd_p2 | ~6h |
+| `run_alpha_0p7.py` | alpha=0.7（0.7×SA-NWD + 0.3×CIoU），验证混合权重影响 | nwd_p2 | ~6h |
 
 > Exp D/E/k-sweep 是自适应 C 方向验证实验，结果填入论文消融表和 Analysis 折线图。
 

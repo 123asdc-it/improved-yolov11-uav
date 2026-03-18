@@ -1,6 +1,8 @@
-# 无人机小目标检测 — YOLOv11n 改进方案
+# 无人机小目标检测 — YOLOv11n + SA-NWD
 
-基于 YOLOv11n 的无人机极小目标检测改进算法。核心贡献：**SA-NWD（Scale-Adaptive Normalized Wasserstein Distance）** + Fisher 信息理论推导 + SimAM 零参数注意力 + P2 检测头 + PConv 轻量化。包含完整的训练、评估、消融实验和 IEEE 论文模板。
+基于 YOLOv11n 的**反无人机**极小目标检测改进方案。
+核心贡献：**SA-NWD（Scale-Adaptive Normalized Wasserstein Distance）** + **P2 小目标检测头**。
+目标期刊：IEEE GRSL / IEEE TGRS（三区）。
 
 ---
 
@@ -17,7 +19,7 @@ pip install ultralytics
 编辑 `configs/data.yaml`，将 `path` 改为数据集实际位置：
 
 ```yaml
-path: /root/drone_detection/datasets  # 改为你的实际路径
+path: /root/drone_detection/datasets  # 服务器绝对路径
 ```
 
 ### 3. 运行（所有命令在项目根目录执行）
@@ -26,16 +28,17 @@ path: /root/drone_detection/datasets  # 改为你的实际路径
 # 基线训练
 python scripts/train_baseline.py
 
-# 主实验：单阶段 SA-NWD（无 Fisher，无 TAL）
-python scripts/run_clean.py
-
-# 消融实验（6组，自动顺序执行）
+# 主消融实验（6组，串行子进程，~36h）
 python scripts/ablation.py
 
+# 服务器完整队列（Exp D/E + k-sweep，~42h）
+bash scripts/run_new_queue.sh 2>&1 | tee logs/new_queue.log
+
 # 统一评估
-python scripts/eval.py --weights runs/ablation/baseline/weights/best.pt \
-                                 runs/detect/clean/weights/best.pt \
-                       --names "Baseline" "Ours"
+python scripts/eval.py --weights \
+    runs/ablation/baseline/weights/best.pt \
+    runs/ablation/nwd_p2/weights/best.pt \
+    --names "Baseline" "SA-NWD+P2"
 ```
 
 ---
@@ -44,120 +47,100 @@ python scripts/eval.py --weights runs/ablation/baseline/weights/best.pt \
 
 ```
 无人机/
+├── CLAUDE.md                          # 全局工作规范（归档/Git/README 约定）
 ├── configs/
-│   ├── data.yaml                     # 数据集配置（单类 drone）
-│   ├── yolo11n-improved.yaml         # 改进模型（P2+SimAM+PConv，无 BiFPN）
-│   ├── yolo11n-sota.yaml             # SOTA 模型（+RepVGG+CARAFE，备用）
-│   └── ablation/                     # 消融 YAML（自动生成）
+│   ├── data.yaml                      # 数据集配置（单类 drone，559 张）
+│   └── yolo11n-improved.yaml          # 改进架构（P2+SimAM+PConv，参考用）
 │
-├── ultralytics_modules/              # 自定义网络模块
-│   ├── simam.py                      #   SimAM 零参数注意力（ICML 2021）[主用]
-│   ├── nwd.py                        #   SA-NWD 全套 patch [核心]
-│   ├── pconv.py                      #   PConv + PConv_C3k2（CVPR 2023）
-│   ├── bifpn.py                      #   BiFPN_Concat [保留，sota 用]
-│   ├── repvgg.py                     #   RepVGGBlock（CVPR 2021）[sota 用]
-│   ├── carafe.py                     #   CARAFE（ICCV 2019）[sota 用]
-│   ├── attention.py                  #   EMA/CA [旧方案，归档]
-│   └── inner_iou.py                  #   Inner-IoU [旧方案，归档]
+├── ultralytics_modules/               # 自定义模块（monkey-patch 注入）
+│   ├── nwd.py                         # SA-NWD 核心实现 ★
+│   ├── simam.py                       # SimAM 零参数注意力
+│   ├── pconv.py                       # PConv + PConv_C3k2
+│   └── __init__.py                    # 模块导出
 │
-├── scripts/
-│   ├── register_modules.py           # 自定义模块注册（必须最先 import）
-│   ├── train_baseline.py             # 基线训练
-│   ├── train_improved.py             # 改进模型（patch_all_nwd）
-│   ├── train_sota.py                 # SOTA 模型
-│   ├── ablation.py                   # 消融实验（6组）
-│   │
-│   ├── run_clean.py                  # [主实验] 单阶段 SA-NWD，从 yolo11n.pt
-│   ├── run_fisher_only.py            # Fisher-CIoU only，从 best.pt 微调
-│   ├── run_clean_fisher.py           # SA-NWD + Fisher-CIoU，从 best.pt 微调
-│   ├── run_sa_nwd_tal.py             # SA-NWD + TAL（nwd_min bug 已修复）
-│   ├── run_fisher_sequence.sh        # 自动串行等待队列
-│   │
-│   ├── eval.py                       # 统一评估（mAP/Params/FPS/FLOPs）
-│   ├── collect_results.py            # 汇总实验结果 → JSON + LaTeX
-│   ├── plot_results.py               # 生成论文图表
-│   ├── gradcam.py                    # Grad-CAM 热力图
-│   ├── slice_dataset.py              # SAHI 切片增强
-│   ├── augment_copy_paste.py         # Copy-Paste 增强
-│   └── verify_error_distribution.py  # 验证 σ(s) ∝ √s 理论假设
+├── scripts/                           # 活跃实验脚本（14 个）
+│   ├── train_baseline.py              # 基线训练
+│   ├── ablation.py                    # 主消融实验（6 组）
+│   ├── run_nwd_fixed.py               # Exp D：Fixed NWD (k=0)
+│   ├── run_nwd_reverse.py             # Exp E：Reverse C 方向验证
+│   ├── run_k_sensitivity.py           # k 超参扫描（k=0.5/2.0/3.0）
+│   ├── run_alpha_0p3.py               # alpha=0.3 消融
+│   ├── run_alpha_0p7.py               # alpha=0.7 消融
+│   ├── run_new_queue.sh               # 服务器串行队列
+│   ├── eval.py                        # 统一评估
+│   ├── collect_results.py             # 汇总结果 → JSON + LaTeX
+│   ├── generate_paper_figs.py         # 论文图表生成
+│   ├── plot_results.py                # 消融柱状图 + PR 曲线
+│   ├── plot_training_curves.py        # 训练曲线
+│   ├── gradcam.py                     # Grad-CAM 热力图
+│   ├── register_modules.py            # 自定义模块注册（必须最先 import）
+│   └── verify_error_distribution.py   # 理论假设验证（有 bug 待修）
 │
 ├── paper/
-│   ├── main.tex                      # IEEE Journal 论文
-│   └── refs.bib                      # 参考文献
+│   ├── main.tex                       # IEEE 论文正文（IEEEtran）
+│   ├── refs.bib                       # 参考文献
+│   └── figs/                          # 图表文件（pdf/png/csv）
 │
-├── docs/
-│   ├── CLAUDE.md                     # 技术上下文（内部）
-│   └── 操作指南.md                    # 详细操作手册
+├── docs/                              # 项目文档
+│   ├── CLAUDE.md                      # 技术上下文（实验结果/待完成清单）
+│   ├── 操作指南.md                     # 详细操作手册
+│   └── 04_投稿改进计划.md              # 投稿任务清单（当前状态）
 │
-└── datasets/
-    ├── images/{train,val,test}/
-    └── labels/{train,val,test}/
+├── datasets/                          # 数据集（不上传 git）
+├── runs/                              # 训练输出（不上传 git）
+│
+└── archive/                           # 归档（失败/过时实验）
+    ├── scripts/                       # 17 个归档脚本（含 Fisher 系列）
+    ├── modules/                       # bifpn/carafe/repvgg/legacy
+    ├── sessions/                      # AI 决策记录（含 Fisher 失败分析）
+    └── results/                       # 历史评估结果
 ```
 
 ---
 
-## 改进方案
+## 核心方案
 
-### 理论基础
+### SA-NWD（最终方案）
 
-我们从 Fisher 信息角度分析了 IoU loss 对小目标的梯度消失问题：
+将 bbox 建模为 2D 高斯，用 Wasserstein-2 距离替代 IoU，自适应常数 C 基于标注噪声正则化设计：
 
 ```
-I_IoU(s) ∝ s⁻²   →  小目标梯度信号消失
-    ↓ 理论推导
-C*(s) ∝ √s        →  Fisher 等变的最优 NWD 自适应常数
-    ↓ 工程实现
-SA-NWD + Fisher-CIoU
+C_adapt = C_base × (1 + k / √S̄)
 ```
 
-### 核心组件（yolo11n-improved.yaml）
+小目标 S 小 → C 大 → loss 对位置误差更宽松 → 防止对标注噪声过拟合。
 
-| 组件 | 模块 | 论文 | 作用 |
-|------|------|------|------|
-| SA-NWD Loss | `patch_sa_nwd_loss` | ISPRS 2022 + 本文 | Wasserstein 度量，scale-adaptive C |
-| SA-NWD-TAL | `patch_sa_nwd_tal` | TOOD 2021 + 本文 | scale-equivariant 标签分配 |
-| Fisher-Guided CIoU | `patch_scale_aware_loss` | 本文 | w(s)=√(ref/s) 补偿小目标梯度 |
-| P2 检测头 | 4-head Detect | — | stride=4，覆盖极小目标 |
-| SimAM 注意力 | `SimAM` | ICML 2021 | 零参数，不增加过拟合风险 |
-| PConv 轻量化 | `PConv_C3k2` | CVPR 2023 | neck 计算量降低 ~20% |
-
-> **BiFPN 已移除**：消融实验（0.9373 vs 0.9666）证实负贡献，当前 improved.yaml 使用标准 Concat。
+混合损失：`L = α · (1 − SA-NWD) + (1−α) · CIoU`
 
 ### 消融实验结果
 
 | 实验 | mAP50 | 说明 |
 |------|:-----:|------|
-| Baseline（YOLOv11n） | 0.929 | 官方预训练权重 fine-tune |
-| +NWD | ~0.94 | 仅换 loss，无结构改变 |
-| +NWD+P2 | ~0.95 | 加 P2 检测头 |
-| +NWD+P2+SimAM | ~0.96 | 加零参数注意力 |
-| **+NWD+P2+SimAM+PConv** | **0.9666** | 当前最优 |
-| +Fisher-CIoU | 待定 | run_fisher_only 进行中 |
-| +SA-NWD+Fisher | 待定 | run_clean_fisher 进行中 |
-| +SA-NWD+TAL | 待定 | run_sa_nwd_tal 进行中 |
+| Baseline（YOLOv11n + CIoU） | 0.9600 | 对比基准 |
+| +SA-NWD（k=1, α=0.5） | 0.9705 | +1.05% |
+| **+SA-NWD + P2 Head** | **0.9781** | **+1.81%，当前最优** |
+| +SimAM | 0.9519 | 负贡献（小数据集过拟合） |
+| +SimAM+PConv | 0.9749 | 仍低于纯 nwd_p2 |
+| +BiFPN（Full） | 0.9365 | 负贡献 -4.16% |
+| Exp D: Fixed NWD (k=0) | 待填 | 验证自适应 C 贡献 |
+| Exp E: Reverse C | 待填 | 验证方向选择合理性 |
 
-### nwd.py 核心函数
+### 核心函数
 
 ```python
-from ultralytics_modules.nwd import (
-    patch_sa_nwd_loss,         # SA-NWD hybrid loss
-    patch_sa_nwd_tal,          # SA-NWD 标签分配（nwd_min=0.3）
-    patch_scale_aware_loss,    # Fisher-Guided CIoU
-    patch_sa_nwd_fisher_loss,  # SA-NWD + Fisher 合并
-    patch_all_nwd,             # 便捷调用（loss + TAL）
-)
+from ultralytics_modules.nwd import patch_all_nwd
 
 # 推荐用法（主实验）
-patch_sa_nwd_loss(c_base=12.0, k=1.0, alpha=0.5)
-
-# 全流程（含 TAL）
 patch_all_nwd(c_base=12.0, k=1.0, alpha=0.5, nwd_min=0.3)
 ```
+
+> `patch_scale_aware_loss` 和 `patch_sa_nwd_fisher_loss` 已废弃（实验证实负贡献），禁止在新实验中使用。
 
 ---
 
 ## 数据集
 
+- **任务**：检测空中飞行的无人机（反无人机场景，非 VisDrone 的从无人机俯拍地面）
 - **格式**：Ultralytics YOLO（归一化 xywh）
 - **类别**：1 类（drone）
 - **划分**：train 391 / val 111 / test 57
@@ -166,35 +149,17 @@ patch_all_nwd(c_base=12.0, k=1.0, alpha=0.5, nwd_min=0.3)
 
 ---
 
-## 数据增强策略
+## 论文编译
 
-### SAHI 切片训练
+上传 `paper/` 文件夹到 [Overleaf](https://www.overleaf.com/)，选择 **pdfLaTeX** 编译器。
 
-```bash
-python scripts/slice_dataset.py
-# 生成 datasets_sliced/ + configs/data_sliced.yaml
-```
-
-### Copy-Paste 增强
-
-```bash
-python scripts/augment_copy_paste.py
-# 生成 datasets_augmented/
-```
+详细操作见 `paper/README.md`。
 
 ---
 
 ## 注意事项
 
-- `register_modules.py` 在各脚本头部自动 import，**必须在 ultralytics 之前 import**
-- 消融实验使用独立子进程，避免 CUDA 上下文污染
-- `patch_sa_nwd_tal` 必须设置 `nwd_min=0.3`，默认值已修复（之前写死 0.01 导致 P 崩溃）
-- GPU 内存：batch=8 需要 ~8.1GB，不能并行两个训练进程
-
----
-
-## 论文编译
-
-上传 `paper/` 文件夹到 [Overleaf](https://www.overleaf.com/)，选择 pdfLaTeX 编译器即可。
-
-论文标题：*SA-NWD: Scale-Adaptive Wasserstein Distance with Fisher-Guided Training for UAV-Based Small Object Detection*
+- `register_modules.py` **必须在 `import ultralytics` 之前执行**，各训练脚本已自动 import
+- `nwd_min=0.3` 必须设置，默认值已修复（之前写死 0.01 导致 P 崩溃）
+- GPU 内存：batch=8 需要约 8.1GB，**不能并行两个训练进程**
+- 服务器 `configs/data.yaml` 的 `path` 必须改为绝对路径

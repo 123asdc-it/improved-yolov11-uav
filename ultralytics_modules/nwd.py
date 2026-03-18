@@ -397,8 +397,10 @@ def patch_nwd_tal(constant=12.0):
 
 # ============================================================
 # Scale-Aware Loss Weighting (Fisher-Guided)
-# DEPRECATED: 所有实验结果（mAP50 0.827~0.937）低于基线（0.960），已归档。
-# 调用此函数的脚本已移至 archive/scripts/。保留仅供参考，请勿在新实验中使用。
+# DEPRECATED: Fisher-CIoU 所有实验结果均低于基线，梯度补偿方向与 SA-NWD 相反
+# 实验结果：mAP50 0.827~0.937（基线 0.960），单独使用和与 SA-NWD 组合均失败
+# 废弃时间：2026-03-19
+# 替代方案：patch_all_nwd()（SA-NWD 正则化方向，已验证有效）
 # ============================================================
 
 def patch_scale_aware_loss(ref_area=0.002, max_scale=1.3, min_scale=0.8):
@@ -480,8 +482,10 @@ def patch_scale_aware_loss(ref_area=0.002, max_scale=1.3, min_scale=0.8):
         print(f"\u26a0 Scale-Aware loss patch failed: {e}")
 
 
-# DEPRECATED: SA-NWD + Fisher-CIoU 组合实验证实两者正则化方向相反，组合效果更差。
-# 保留仅供参考，请勿在新实验中使用。
+# DEPRECATED: SA-NWD + Fisher-CIoU 组合，两者方向相反导致训练信号混乱
+# 实验结果：mAP50 ≈ 0.869（比单独使用 SA-NWD 的 0.9705 更差）
+# 废弃时间：2026-03-19
+# 替代方案：patch_all_nwd()（单独 SA-NWD，不叠加 Fisher-CIoU）
 def patch_sa_nwd_fisher_loss(c_base=12.0, k=1.0, alpha=0.5,
                               ref_area=0.002, max_scale=1.3, min_scale=0.8):
     """Patch BboxLoss with SA-NWD + Fisher-Guided Scale-Aware CIoU (combined).
