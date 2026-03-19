@@ -11,7 +11,7 @@
 #
 # Prerequisites:
 #   1. Convert AI-TOD: python scripts/convert_aitod_to_yolo.py ...
-#   2. Confirm datasets/aitod/aitod_data.yaml has correct absolute path
+#   2. Confirm datasets/aitod_converted/aitod_data.yaml has correct absolute path
 #   3. Confirm E7 dry run succeeds (no OOM)
 #
 # Usage (on server):
@@ -23,7 +23,7 @@
 cd /root/drone_detection
 
 LOG_DIR="logs"
-AITOD_DATA="datasets/aitod/aitod_data.yaml"
+AITOD_DATA="datasets/aitod_converted/aitod_data.yaml"
 ABLATION_PROJECT="runs/ablation"
 mkdir -p "$LOG_DIR"
 
@@ -70,7 +70,7 @@ patch_all_nwd(c_base=12.0, k=1.0, alpha=0.5, nwd_min=0.3)
 from ultralytics import YOLO
 model = YOLO('yolo11n.pt')
 model.train(
-    data='datasets/aitod/aitod_data.yaml',
+    data='datasets/aitod_converted/aitod_data.yaml',
     imgsz=800,
     epochs=1,
     batch=8,

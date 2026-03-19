@@ -13,7 +13,7 @@ from ultralytics import YOLO
 EXP_NAME = 'aitod_sanwd_p2'
 ABLATION_PROJECT = '/root/drone_detection/runs/ablation'
 WEIGHT_PATH = f'{ABLATION_PROJECT}/{EXP_NAME}/weights/best.pt'
-AITOD_DATA = 'datasets/aitod/aitod_data.yaml'
+AITOD_DATA = 'datasets/aitod_converted/aitod_data.yaml'
 NWD_P2_YAML = 'configs/ablation/ablation_nwd_p2.yaml'
 
 TRAIN_ARGS = dict(data=AITOD_DATA, imgsz=800, epochs=300, patience=100,
