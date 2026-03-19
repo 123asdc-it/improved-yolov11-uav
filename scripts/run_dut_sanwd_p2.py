@@ -1,0 +1,50 @@
+"""run_dut_sanwd_p2.py — DUT Anti-UAV + SA-NWD + P2 Head (final method)"""
+import os, sys, json
+from pathlib import Path
+
+PROJECT_ROOT = Path('/root/drone_detection')
+os.chdir(PROJECT_ROOT)
+sys.path.insert(0, str(PROJECT_ROOT / 'scripts'))
+import register_modules  # noqa
+
+from ultralytics_modules.nwd import patch_all_nwd
+patch_all_nwd(c_base=12.0, k=1.0, alpha=0.5, nwd_min=0.3)
+print('[DUT SA-NWD+P2] k=1.0, alpha=0.5, P2 head (final method)')
+
+from ultralytics import YOLO
+
+EXP_NAME = 'dut_sanwd_p2'
+ABLATION_PROJECT = '/root/drone_detection/runs/ablation'
+WEIGHT_PATH = f'{ABLATION_PROJECT}/{EXP_NAME}/weights/best.pt'
+DUT_DATA = 'datasets/dut/dut_data.yaml'
+NWD_P2_YAML = 'configs/ablation/ablation_nwd_p2.yaml'
+
+TRAIN_ARGS = dict(
+    data=DUT_DATA, imgsz=1280, epochs=300, patience=100,
+    batch=8, lr0=0.01, cos_lr=True, mosaic=1.0, mixup=0.15,
+    copy_paste=0.2, warmup_epochs=5, workers=4, cache=False, seed=0,
+)
+
+if Path(WEIGHT_PATH).exists():
+    print(f'[SKIP] Running val only')
+    model = YOLO(WEIGHT_PATH)
+    metrics = model.val(data=DUT_DATA, imgsz=1280, split='val')
+else:
+    model = YOLO(NWD_P2_YAML)
+    model.train(pretrained='yolo11n.pt', project=ABLATION_PROJECT,
+                name=EXP_NAME, exist_ok=True, **TRAIN_ARGS)
+    metrics = model.val(data=DUT_DATA, imgsz=1280, split='val')
+
+result = {
+    'name': 'DUT + SA-NWD + P2 (final method)', 'exp': EXP_NAME,
+    'dataset': 'DUT Anti-UAV',
+    'map50': round(float(metrics.box.map50), 4),
+    'map':   round(float(metrics.box.map), 4),
+    'precision': round(float(metrics.box.mp), 4),
+    'recall':    round(float(metrics.box.mr), 4),
+}
+print('RESULT: ' + json.dumps(result))
+out = Path(ABLATION_PROJECT) / EXP_NAME / 'result.json'
+out.parent.mkdir(parents=True, exist_ok=True)
+with open(out, 'w') as f:
+    json.dump(result, f, indent=2)

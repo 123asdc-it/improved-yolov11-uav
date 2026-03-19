@@ -7,7 +7,8 @@ AI-TOD dataset:
   - Format: COCO JSON (train/val/test splits)
   - 8 categories: airplane, bridge, storage-tank, ship, swimming-pool,
                   vehicle, person, wind-mill
-  - ~28,036 images, ~700,621 instances
+  - v1: ~18K images (DOTA source only)
+  - v2: ~28K images (DOTA + xView); xView images require separate license
   - Image size: 800×800 (already cropped)
 
 Output structure (Ultralytics YOLO format):
@@ -22,17 +23,28 @@ Output structure (Ultralytics YOLO format):
       └── test/    *.txt
 
 Usage:
-  # Download AI-TOD from https://github.com/jwwangchn/AI-TOD
-  # Place annotations in /path/to/aitod_raw/annotations/
-  # Place images in /path/to/aitod_raw/images/
+  # v1 (no xView license needed):
+  python scripts/convert_aitod_to_yolo.py \\
+      --src /path/to/aitod_raw \\
+      --dst datasets/aitod
+
+  # v2 with xView filtering (only use DOTA-sourced images):
   python scripts/convert_aitod_to_yolo.py \\
       --src /path/to/aitod_raw \\
       --dst datasets/aitod \\
-      --splits train val test
+      --filter-xview
 
-Note on xView:
-  AI-TOD version 2 (AI-TOD-v2) incorporates xView images.
-  If you only have AI-TOD v1, skip xView-sourced images (already handled below).
+  # v2 use all images (requires xView license):
+  python scripts/convert_aitod_to_yolo.py \\
+      --src /path/to/aitod_raw \\
+      --dst datasets/aitod \\
+      --use-all
+
+xView filtering:
+  AI-TOD v2 image filenames from xView start with 'xview_' or contain
+  a numeric prefix > 1000 (DOTA images use P####.png naming).
+  With --filter-xview (default for v2), only DOTA-sourced images are kept.
+  This reduces ~28K → ~18K images but requires no xView license.
 """
 
 import json
@@ -53,6 +65,26 @@ AITOD_CATEGORIES = {
     7: (6, 'person'),
     8: (7, 'wind-mill'),
 }
+
+
+def is_xview_image(filename: str) -> bool:
+    """Return True if this image is from xView source (not DOTA).
+
+    AI-TOD v2 xView images are named like:
+      xview_XXXXXX.png  or  XXXXXX.png (6-digit numeric, no 'P' prefix)
+    DOTA images are named like:
+      P0001__1__0___0.png  (start with 'P' followed by 4 digits)
+    """
+    stem = Path(filename).stem
+    # DOTA pattern: starts with P + digits
+    if stem.upper().startswith('P') and stem[1:].split('__')[0].isdigit():
+        return False
+    # xView pattern: purely numeric or starts with 'xview'
+    if stem.lower().startswith('xview'):
+        return True
+    if stem.split('__')[0].isdigit():
+        return True
+    return False
 
 
 def coco_to_yolo(annotation: dict, img_w: int, img_h: int):
@@ -85,51 +117,61 @@ def coco_to_yolo(annotation: dict, img_w: int, img_h: int):
     return f"{class_idx} {cx:.6f} {cy:.6f} {w_norm:.6f} {h_norm:.6f}"
 
 
-def convert_split(src_dir: Path, dst_dir: Path, split: str, copy_images: bool = True):
+def convert_split(src_dir: Path, dst_dir: Path, split: str,
+                  copy_images: bool = True, filter_xview: bool = True):
     """Convert one split (train/val/test) from COCO to YOLO format."""
-    ann_file = src_dir / 'annotations' / f'aitod_{split}_v1.json'
-    if not ann_file.exists():
-        # Try alternative naming
-        ann_file = src_dir / 'annotations' / f'ai_tod_{split}.json'
-    if not ann_file.exists():
-        print(f'[WARN] Annotation file not found for split={split}: {ann_file}')
+    # Try multiple annotation filename conventions
+    ann_candidates = [
+        src_dir / 'annotations' / f'aitod_{split}_v2.json',
+        src_dir / 'annotations' / f'aitod_{split}_v1.json',
+        src_dir / 'annotations' / f'ai_tod_{split}.json',
+        src_dir / 'annotations' / f'{split}.json',
+    ]
+    ann_file = None
+    for c in ann_candidates:
+        if c.exists():
+            ann_file = c
+            break
+    if ann_file is None:
+        print(f'[WARN] No annotation file found for split={split}, tried:')
+        for c in ann_candidates:
+            print(f'       {c}')
         return 0, 0
 
     print(f'[{split}] Loading {ann_file}...')
     with open(ann_file) as f:
         coco = json.load(f)
 
-    # Build image info lookup
     img_info = {img['id']: img for img in coco['images']}
-
-    # Build annotation lookup: image_id → list of annotations
     ann_by_image = {}
     for ann in coco['annotations']:
         ann_by_image.setdefault(ann['image_id'], []).append(ann)
 
-    # Prepare output directories
     out_img_dir = dst_dir / 'images' / split
     out_lbl_dir = dst_dir / 'labels' / split
     out_img_dir.mkdir(parents=True, exist_ok=True)
     out_lbl_dir.mkdir(parents=True, exist_ok=True)
 
-    n_images = 0
-    n_boxes = 0
+    n_images = n_boxes = n_skipped_xview = 0
 
     for img_id, img in tqdm(img_info.items(), desc=f'[{split}]'):
         img_filename = img['file_name']
+
+        # Filter xView images if requested
+        if filter_xview and is_xview_image(img_filename):
+            n_skipped_xview += 1
+            continue
+
         img_w = img['width']
         img_h = img['height']
 
-        # Source image
+        # Locate source image
         src_img = src_dir / 'images' / img_filename
         if not src_img.exists():
-            # Try split-specific subfolder
             src_img = src_dir / 'images' / split / img_filename
         if not src_img.exists():
             continue
 
-        # Convert annotations
         anns = ann_by_image.get(img_id, [])
         yolo_lines = []
         for ann in anns:
@@ -138,13 +180,11 @@ def convert_split(src_dir: Path, dst_dir: Path, split: str, copy_images: bool = 
                 yolo_lines.append(line)
                 n_boxes += 1
 
-        # Write label file (even if empty → image with no objects)
         stem = Path(img_filename).stem
         lbl_path = out_lbl_dir / f'{stem}.txt'
         with open(lbl_path, 'w') as f:
             f.write('\n'.join(yolo_lines))
 
-        # Copy or symlink image
         if copy_images:
             dst_img = out_img_dir / img_filename
             dst_img.parent.mkdir(parents=True, exist_ok=True)
@@ -153,7 +193,10 @@ def convert_split(src_dir: Path, dst_dir: Path, split: str, copy_images: bool = 
 
         n_images += 1
 
-    print(f'[{split}] Done: {n_images} images, {n_boxes} boxes')
+    msg = f'[{split}] Done: {n_images} images, {n_boxes} boxes'
+    if n_skipped_xview:
+        msg += f', {n_skipped_xview} xView images skipped'
+    print(msg)
     return n_images, n_boxes
 
 
@@ -186,19 +229,27 @@ if __name__ == '__main__':
     parser.add_argument('--splits', nargs='+', default=['train', 'val', 'test'])
     parser.add_argument('--no-copy', action='store_true',
                         help='Skip copying images (use when images already in dst)')
+    parser.add_argument('--filter-xview', action='store_true', default=True,
+                        help='Filter out xView-sourced images (default: True for v2 compliance)')
+    parser.add_argument('--use-all', action='store_true',
+                        help='Use all images including xView (requires xView license)')
     args = parser.parse_args()
 
     src = Path(args.src)
     dst = Path(args.dst)
     copy_images = not args.no_copy
+    filter_xview = not args.use_all  # --use-all overrides --filter-xview
 
     print(f'Converting AI-TOD: {src} → {dst}')
     print(f'Splits: {args.splits}')
+    print(f'xView filter: {"ON (DOTA-only)" if filter_xview else "OFF (all images)"}')
 
     total_images = 0
     total_boxes = 0
     for split in args.splits:
-        n_img, n_box = convert_split(src, dst, split, copy_images=copy_images)
+        n_img, n_box = convert_split(src, dst, split,
+                                     copy_images=copy_images,
+                                     filter_xview=filter_xview)
         total_images += n_img
         total_boxes += n_box
 
@@ -208,6 +259,6 @@ if __name__ == '__main__':
     print(f'  Total images: {total_images}')
     print(f'  Total boxes:  {total_boxes}')
     print(f'  Data YAML:    {yaml_path}')
-    print(f'\nNext step:')
-    print(f'  Edit datasets/aitod/aitod_data.yaml to set correct absolute path')
-    print(f'  Then run: python scripts/run_aitod_queue.sh')
+    if filter_xview:
+        print(f'  Note: xView images excluded. Use --use-all if you have xView license.')
+    print(f'\nNext: rsync datasets/aitod/ to server, then bash scripts/run_aitod_queue.sh')
