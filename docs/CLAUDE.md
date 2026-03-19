@@ -279,11 +279,18 @@ seed=0, pretrained='yolo11n.pt'
 ## 对话计数器
 
 ```
-当前计数：3 / 5
-上次快照：2026-03-19，第 3 轮
+当前计数：0 / 5
+上次快照：2026-03-19，第 4 轮
 
 每 5 轮对话后触发快照，计数归零。
 ```
+
+## 上下文快照（2026-03-19，第 4 轮）
+
+- 当前进展：确定三数据集叙事策略（私有集=动机+消融，DUT Anti-UAV=跨数据集#1，AI-TOD=跨数据集#2）；DUT Anti-UAV 已下载（10K张，VOC XML格式，bbox中位数0.000472，极端极小目标）；AI-TOD v2 已下载（23GB，使用DOTA部分~18K张，过滤xView）；所有转换脚本和训练脚本已就绪（convert_dut_to_yolo.py、run_dut_*.py、run_dut_queue.sh、convert_aitod_to_yolo.py含xView过滤、run_aitod_*.py）；refs.bib 新增 DUT Anti-UAV 引用（zhao2022dut）；docs 全部更新（04_投稿改进计划.md、02_修稿与补实验计划.md）
+- 最新决定：私有集不需要 cite，写 "provided by a collaborating research group" 即可；AI-TOD v2 只用 DOTA 部分（--filter-xview），无需 xView 授权；论文 §IV 重构为三数据集结构（A.Datasets / B.Details / C.Ablation / D.Cross-Dataset / E.Analysis）；可先投 IEEE GRSL 短文（DUT完成后），再投 TGRS 长文（三数据集完整后）
+- 服务器/实验状态：私有集 Phase 1 队列运行中（alpha→D→E→k-sweep）；DUT/AI-TOD 脚本就绪，待本地转换后 rsync 到服务器启动
+- 待完成：（1）本地跑 convert_dut_to_yolo.py（5分钟）；（2）解压 AI-TOD 并跑 convert_aitod_to_yolo.py；（3）rsync 到服务器，Phase 1 完成后启动 DUT 队列；（4）Phase 2 实验（E_p2only/E2/E3/E4/E1/E5/E_fps）；（5）论文 §IV 重构
 
 ## 重要注意事项
 
