@@ -37,7 +37,7 @@ patch_all_nwd(
     c_base=12.0,
     k=1.0,
     alpha=0.5,
-    nwd_min=0.3,
+    nwd_min=0.0,
     use_nwd_nms=True,
     nms_iou_threshold=0.7,
     nms_nwd_threshold=0.8,

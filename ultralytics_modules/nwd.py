@@ -258,19 +258,19 @@ def patch_sa_nwd_loss(c_base=12.0, k=1.0, alpha=0.5):
         print(f"\u26a0 SA-NWD loss patch failed: {e}")
 
 
-def patch_sa_nwd_tal(c_base=12.0, k=1.0, nwd_min=0.3):
+def patch_sa_nwd_tal(c_base=12.0, k=1.0, nwd_min=0.0):
     """Monkey-patch ultralytics TaskAlignedAssigner to use SA-NWD.
 
     nwd_min controls the minimum SA-NWD score for a positive anchor.
-    Scores below nwd_min are zeroed out, preventing low-quality anchors
-    from becoming positives (which caused precision collapse in earlier versions).
+    Scores below nwd_min are zeroed out.
 
-    Typical range: 0.2~0.4. Default 0.3 is stable for drone dataset.
-    Lower values give more positive samples but risk false positives.
+    Default nwd_min=0.0 (no filtering) for from-scratch training:
+    - TAL's top-k mechanism naturally filters distant anchors (low NWD = low rank)
+    - Adding a threshold artificially reduces the positive sample pool
+    - For fine-tuning scenarios, a higher nwd_min (e.g., 0.3) may help stability
 
-    Bug fix: previous version had nwd_min parameter but used hardcoded 0.01,
-    which let almost all anchors pass and caused P to collapse to ~0.1.
-    Now nwd_min is correctly applied.
+    Historical note: nwd_min=0.3 was added to fix fine-tuning instability,
+    but caused ~10% mAP drop on from-scratch training by over-filtering anchors.
     """
     try:
         from ultralytics.utils.tal import TaskAlignedAssigner
@@ -345,7 +345,7 @@ def patch_nwd_nms(iou_threshold=0.7, nwd_threshold=0.8, c_base=12.0, k=2.0):
 # ============================================================
 
 def patch_all_nwd(c_base=12.0, k=1.0, alpha=0.5, use_sa=True, use_nwd_nms=False,
-                  nms_iou_threshold=0.7, nms_nwd_threshold=0.8, nwd_min=0.3):
+                  nms_iou_threshold=0.7, nms_nwd_threshold=0.8, nwd_min=0.0):
     """Apply SA-NWD patches to ultralytics.
 
     Args:
@@ -357,8 +357,8 @@ def patch_all_nwd(c_base=12.0, k=1.0, alpha=0.5, use_sa=True, use_nwd_nms=False,
         use_nwd_nms: If True, also patch NMS with hybrid IoU+NWD (default False)
         nms_iou_threshold: IoU threshold for NMS
         nms_nwd_threshold: NWD threshold for additional NMS suppression
-        nwd_min: Minimum SA-NWD score for TAL positive anchors (default 0.3).
-                 Values below this are zeroed out. Prevents precision collapse.
+        nwd_min: Minimum SA-NWD score for TAL positive anchors (default 0.0).
+                 Set higher (e.g., 0.3) only for fine-tuning stability.
     """
     if use_sa:
         patch_sa_nwd_loss(c_base=c_base, k=k, alpha=alpha)

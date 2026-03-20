@@ -9,7 +9,7 @@ import register_modules  # noqa
 
 from ultralytics_modules.nwd import patch_all_nwd
 # k=0: C_adapt = c_base * (1 + 0/sqrt(S)) = c_base = 12 (fixed constant = standard NWD)
-patch_all_nwd(c_base=12.0, k=0.0, alpha=0.5, nwd_min=0.3)
+patch_all_nwd(c_base=12.0, k=0.0, alpha=0.5, nwd_min=0.0)
 print('[DUT NWD k=0] Fixed C=12, standard NWD hybrid, no P2')
 
 from ultralytics import YOLO

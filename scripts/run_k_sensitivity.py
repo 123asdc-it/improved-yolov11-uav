@@ -17,7 +17,7 @@ Together with existing results:
   k=3.0 (this script)
 
 Architecture: nwd_p2 (P2 head, same as best config)
-All with alpha=0.5, nwd_min=0.3, seed=0, 300 epochs
+All with alpha=0.5, nwd_min=0.0, seed=0, 300 epochs
 
 Server path: /root/drone_detection/
 Output:      runs/ablation/nwd_p2_k{value}/
@@ -79,7 +79,7 @@ import register_modules
 
 from ultralytics_modules.nwd import patch_all_nwd
 k_val = {k_val!r}
-patch_all_nwd(c_base=12.0, k=k_val, alpha=0.5, use_sa=True, nwd_min=0.3)
+patch_all_nwd(c_base=12.0, k=k_val, alpha=0.5, use_sa=True, nwd_min=0.0)
 
 ref = 0.002315
 c_med = 12.0 * (1 + k_val / (ref ** 0.5))

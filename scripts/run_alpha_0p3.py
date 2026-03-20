@@ -23,7 +23,7 @@ sys.path.insert(0, str(PROJECT_ROOT / 'scripts'))
 import register_modules  # noqa: F401
 
 from ultralytics_modules.nwd import patch_all_nwd
-patch_all_nwd(c_base=12.0, k=1.0, alpha=0.3, use_sa=True, nwd_min=0.3)
+patch_all_nwd(c_base=12.0, k=1.0, alpha=0.3, use_sa=True, nwd_min=0.0)
 print('[alpha=0.3] loss = 0.3 * SA-NWD + 0.7 * CIoU, architecture: nwd_p2')
 
 from ultralytics import YOLO

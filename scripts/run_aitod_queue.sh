@@ -66,7 +66,7 @@ os.chdir('/root/drone_detection')
 sys.path.insert(0, 'scripts')
 import register_modules
 from ultralytics_modules.nwd import patch_all_nwd
-patch_all_nwd(c_base=12.0, k=1.0, alpha=0.5, nwd_min=0.3)
+patch_all_nwd(c_base=12.0, k=1.0, alpha=0.5, nwd_min=0.0)
 from ultralytics import YOLO
 model = YOLO('yolo11n.pt')
 model.train(

@@ -6,7 +6,7 @@ os.chdir(PROJECT_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT / 'scripts'))
 import register_modules  # noqa
 from ultralytics_modules.nwd import patch_all_nwd
-patch_all_nwd(c_base=12.0, k=1.0, alpha=0.5, nwd_min=0.3)
+patch_all_nwd(c_base=12.0, k=1.0, alpha=0.5, nwd_min=0.0)
 print('[E10] AI-TOD + SA-NWD (k=1.0, alpha=0.5, no P2 head)')
 from ultralytics import YOLO
 

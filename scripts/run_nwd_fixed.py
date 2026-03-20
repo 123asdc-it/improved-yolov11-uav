@@ -33,7 +33,7 @@ import register_modules  # noqa: F401
 # with k=0, which mathematically reduces to standard NWD (fixed C=c_base).
 # This is equivalent to use_sa=False but keeps identical code paths for fairness.
 from ultralytics_modules.nwd import patch_all_nwd
-patch_all_nwd(c_base=12.0, k=0.0, alpha=0.5, use_sa=True, nwd_min=0.3)
+patch_all_nwd(c_base=12.0, k=0.0, alpha=0.5, use_sa=True, nwd_min=0.0)
 print('[Exp D] Fixed NWD: k=0, C=12 (constant), alpha=0.5')
 print('[Exp D] Architecture: nwd_p2 (P2 head, same as best config)')
 

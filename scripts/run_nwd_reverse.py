@@ -39,7 +39,7 @@ from ultralytics_modules.nwd import patch_sa_nwd_loss_reverse, patch_sa_nwd_tal
 # Reverse loss: C grows with scale
 patch_sa_nwd_loss_reverse(c_base=12.0, k=1.0, alpha=0.5, ref_area=0.002315)
 # TAL: keep standard SA-NWD (k=1.0) — only loss direction changes
-patch_sa_nwd_tal(c_base=12.0, k=1.0, nwd_min=0.3)
+patch_sa_nwd_tal(c_base=12.0, k=1.0, nwd_min=0.0)
 print('[Exp E] Reverse SA-NWD: C = 12*(1 + sqrt(S/0.002315)), alpha=0.5')
 print('[Exp E] Architecture: nwd_p2 (P2 head)')
 

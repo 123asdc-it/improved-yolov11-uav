@@ -131,7 +131,7 @@ def _patched_sa_nwd_loss_with_logging(c_base=12.0, k=1.0, alpha=0.5, log_every=1
 
 # Apply patches
 _patched_sa_nwd_loss_with_logging(c_base=12.0, k=1.0, alpha=0.5, log_every=10)
-patch_sa_nwd_tal(c_base=12.0, k=1.0, nwd_min=0.3)
+patch_sa_nwd_tal(c_base=12.0, k=1.0, nwd_min=0.0)
 print('[E1] W₂/C working point logging: SA-NWD k=1.0, alpha=0.5')
 
 from ultralytics import YOLO

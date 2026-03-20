@@ -116,7 +116,7 @@ def run_e3_tal_only():
 
     # Patch only the TAL, NOT the loss
     from ultralytics_modules.nwd import patch_sa_nwd_tal
-    patch_sa_nwd_tal(c_base=12.0, k=1.0, nwd_min=0.3)
+    patch_sa_nwd_tal(c_base=12.0, k=1.0, nwd_min=0.0)
 
     exp_name = 'nwd_tal_only'
     weight_path = f'{ABLATION_PROJECT}/{exp_name}/weights/best.pt'
@@ -138,7 +138,7 @@ def run_e3_tal_only():
     result = {
         'name': 'E3: SA-NWD TAL only (CIoU loss)',
         'exp': exp_name,
-        'config': 'stock arch, CIoU loss, SA-NWD TAL (k=1.0, nwd_min=0.3)',
+        'config': 'stock arch, CIoU loss, SA-NWD TAL (k=1.0, nwd_min=0.0)',
         'map50':     round(float(metrics.box.map50), 4),
         'map':       round(float(metrics.box.map), 4),
         'precision': round(float(metrics.box.mp), 4),

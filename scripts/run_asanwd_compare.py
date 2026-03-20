@@ -108,7 +108,7 @@ def _patch_asanwd_loss(c_base=12.0, k=1.0, alpha=0.5):
 
 # Apply Asa-NWD (batch-level) loss + SA-NWD TAL (keep TAL as SA-NWD for fair comparison)
 _patch_asanwd_loss(c_base=12.0, k=1.0, alpha=0.5)
-patch_sa_nwd_tal(c_base=12.0, k=1.0, nwd_min=0.3)
+patch_sa_nwd_tal(c_base=12.0, k=1.0, nwd_min=0.0)
 print('[E4] Asa-NWD: batch-level C, SA-NWD TAL, k=1.0, alpha=0.5')
 print('[E4] Architecture: nwd_p2 (same as best config)')
 
