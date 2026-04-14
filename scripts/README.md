@@ -60,11 +60,13 @@ python scripts/<脚本名>.py
 | `run_aitod_sanwd_p2.py` | **E11**：AI-TOD + SA-NWD + P2（best config） | E11 |
 | `run_aitod_p2only.py` | **E12**：AI-TOD + P2 only（无 NWD） | E12 |
 
-### E. 队列调度（2 个）
+### E. 队列调度（4 个）
 
 | 脚本 | 用途 |
 |------|------|
-| `run_new_queue.sh` | 私有集串行队列：alpha sweep → Exp D → Exp E → k-sweep，约 42h |
+| `setup_new_server.sh` | **新服务器一键 setup**：conda 环境 + 依赖 + 目录 + 1-epoch 冒烟测试（GRSL 补丁 Day 1 用） |
+| `run_grsl_queue.sh` | **GRSL 最小补丁队列**：Tier 1（Exp D/E/FPS）+ Tier 2（k-sweep 2 点 / E_p2only），约 30h。配合 `docs/06_GRSL最小补丁方案.md` |
+| `run_new_queue.sh` | 私有集串行队列：alpha sweep → Exp D → Exp E → k-sweep，约 42h（原服务器队列，已过时） |
 | `run_aitod_queue.sh` | AI-TOD 串行队列（包含 dry run），约 6-8 天 |
 
 ### F. 评估与结果收集（2 个）
@@ -114,8 +116,24 @@ eval.py                  ← 读取指定 best.pt 文件
 
 ## 建议运行顺序（服务器）
 
+### GRSL 路径（服务器丢失后的最小补丁方案，详见 docs/06）
+
 ```
-Phase 1（当前）:
+Day 1 上午（本地 rsync 代码+数据到新服务器后）:
+  bash scripts/setup_new_server.sh    环境 setup + 冒烟测试（~30min）
+
+Day 1 下午 - Day 3:
+  bash scripts/run_grsl_queue.sh      Tier 1+2 串行（~30h）
+  # 或：TIER=1 bash scripts/run_grsl_queue.sh    # 仅 Tier 1（~12h，套餐 A）
+
+Day 5（结果回本地）:
+  rsync runs/ablation/ 回本地 → 填 paper/main.tex Table 1
+```
+
+### 原完整路径（服务器还在时使用，已过时）
+
+```
+Phase 1:
   run_new_queue.sh          私有集补充消融（alpha/D/E/k-sweep，~42h）
 
 Phase 2（并行，E1-E6）:

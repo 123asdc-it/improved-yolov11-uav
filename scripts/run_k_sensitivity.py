@@ -57,7 +57,13 @@ TRAIN_ARGS = dict(
 )
 
 # k=1.0 already done (nwd_p2), skip it
-K_VALUES = [0.5, 2.0, 3.0]
+# GRSL 裁剪版可通过环境变量只跑部分点：GRSL_K_VALUES="0.5,2.0"
+_env_k = os.environ.get('GRSL_K_VALUES', '').strip()
+if _env_k:
+    K_VALUES = [float(x) for x in _env_k.split(',') if x.strip()]
+    print(f'[k-sweep] 从环境变量 GRSL_K_VALUES 读取 K_VALUES={K_VALUES}')
+else:
+    K_VALUES = [0.5, 2.0, 3.0]
 
 # C(median) reference values for logging
 import math
