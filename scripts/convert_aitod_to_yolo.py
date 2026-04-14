@@ -201,13 +201,23 @@ def convert_split(src_dir: Path, dst_dir: Path, split: str,
 
 
 def write_data_yaml(dst_dir: Path, splits: list):
-    """Write aitod_data.yaml for Ultralytics training."""
+    """Write aitod_data.yaml for Ultralytics training.
+
+    Note: yaml 里 path 使用相对路径（相对训练时的 cwd，即项目根目录），
+    这样 rsync 到服务器后无需修改就能直接使用。
+    如果 --dst 传入的是绝对路径，则 yaml 也写绝对路径（按用户意图）。
+    """
     class_names = [v[1] for v in sorted(AITOD_CATEGORIES.values(), key=lambda x: x[0])]
+    # 保留用户传入的原始形式（相对 / 绝对），不强制 resolve
+    yaml_path_field = str(dst_dir)
     yaml_content = f"""# AI-TOD dataset configuration for Ultralytics YOLO
 # Converted by scripts/convert_aitod_to_yolo.py
 # Paper: "Tiny Object Detection in Aerial Images" (ICPR 2021)
+#
+# NOTE: path 是相对训练 cwd（项目根目录）的相对路径。
+#       如果训练 cwd 不是项目根，请手动把 path 改为绝对路径。
 
-path: {dst_dir.resolve()}
+path: {yaml_path_field}
 train: images/train
 val: images/val
 test: images/test

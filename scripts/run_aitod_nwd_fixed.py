@@ -1,4 +1,9 @@
-"""run_aitod_nwd_fixed.py — E9: AI-TOD + NWD k=0 (fixed C, standard NWD)"""
+"""run_aitod_nwd_fixed.py — E9: AI-TOD + NWD k=0 (fixed C, standard NWD)
+
+TODO(c_base tuning): k=0 固定 C=12 来自私有集校准。AI-TOD 物体小 9 倍，
+C=12 对 AI-TOD 仍可能偏大；但本实验的目的是"和 SA-NWD 同 c_base 对照"，
+所以跟其他 AI-TOD 实验保持 c_base=12 一致（参见 plan Part 8 Risk A）。
+"""
 import os, sys, json
 from pathlib import Path
 PROJECT_ROOT = Path('/root/drone_detection')
@@ -6,6 +11,7 @@ os.chdir(PROJECT_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT / 'scripts'))
 import register_modules  # noqa
 from ultralytics_modules.nwd import patch_all_nwd
+# c_base=12 跟 SA-NWD 实验一致以保证对照（见顶部 TODO）
 patch_all_nwd(c_base=12.0, k=0.0, alpha=0.5, nwd_min=0.0)
 print('[E9] AI-TOD + NWD k=0 (fixed C=12, standard NWD hybrid)')
 from ultralytics import YOLO
@@ -13,7 +19,7 @@ from ultralytics import YOLO
 EXP_NAME = 'aitod_nwd_fixed'
 ABLATION_PROJECT = '/root/drone_detection/runs/ablation'
 WEIGHT_PATH = f'{ABLATION_PROJECT}/{EXP_NAME}/weights/best.pt'
-AITOD_DATA = 'datasets/aitod_converted/aitod_data.yaml'
+AITOD_DATA = 'datasets/aitod/aitod_data.yaml'
 
 TRAIN_ARGS = dict(data=AITOD_DATA, imgsz=800, epochs=300, patience=100,
                   batch=8, lr0=0.01, cos_lr=True, mosaic=1.0, mixup=0.1,
